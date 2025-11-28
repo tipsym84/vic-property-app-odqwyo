@@ -1,91 +1,328 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { IconSymbol } from "@/components/IconSymbol";
-import { GlassView } from "expo-glass-effect";
-import { useTheme } from "@react-navigation/native";
+
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import { IconSymbol } from '@/components/IconSymbol';
 
 export default function ProfileScreen() {
-  const theme = useTheme();
+  const [agentInfo, setAgentInfo] = useState<any>(null);
+
+  useEffect(() => {
+    loadAgentInfo();
+  }, []);
+
+  const loadAgentInfo = async () => {
+    try {
+      const savedAgent = await AsyncStorage.getItem('agentInfo');
+      if (savedAgent) {
+        setAgentInfo(JSON.parse(savedAgent));
+      }
+    } catch (error) {
+      console.log('Error loading agent info:', error);
+    }
+  };
+
+  const clearAgentCode = async () => {
+    Alert.alert(
+      'Clear Agent Code',
+      'Are you sure you want to remove the agent information?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorage.removeItem('agentInfo');
+            setAgentInfo(null);
+          },
+        },
+      ]
+    );
+  };
+
+  const contactConveyancer = () => {
+    Alert.alert(
+      'Contact Conveyancer',
+      'Would you like to get in touch with our conveyancing services?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call',
+          onPress: () => Linking.openURL('tel:1300123456'),
+        },
+        {
+          text: 'Email',
+          onPress: () => Linking.openURL('mailto:info@propertyguru.com.au'),
+        },
+      ]
+    );
+  };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['top']}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={[
-          styles.contentContainer,
-          Platform.OS !== 'ios' && styles.contentContainerWithTabBar
-        ]}
+    <View style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <GlassView style={[
-          styles.profileHeader,
-          Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-        ]} glassEffectStyle="regular">
-          <IconSymbol ios_icon_name="person.circle.fill" android_material_icon_name="person" size={80} color={theme.colors.primary} />
-          <Text style={[styles.name, { color: theme.colors.text }]}>John Doe</Text>
-          <Text style={[styles.email, { color: theme.dark ? '#98989D' : '#666' }]}>john.doe@example.com</Text>
-        </GlassView>
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+        </View>
 
-        <GlassView style={[
-          styles.section,
-          Platform.OS !== 'ios' && { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
-        ]} glassEffectStyle="regular">
-          <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="phone.fill" android_material_icon_name="phone" size={20} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>+1 (555) 123-4567</Text>
+        <View style={commonStyles.card}>
+          <View style={styles.appInfo}>
+            <View style={styles.appIcon}>
+              <IconSymbol
+                ios_icon_name="house.fill"
+                android_material_icon_name="home"
+                size={48}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.appName}>PropertyGuru</Text>
+            <Text style={styles.appSlogan}>Real Estate Doesn&apos;t Have to be Overwhelming</Text>
           </View>
-          <View style={styles.infoRow}>
-            <IconSymbol ios_icon_name="location.fill" android_material_icon_name="location-on" size={20} color={theme.dark ? '#98989D' : '#666'} />
-            <Text style={[styles.infoText, { color: theme.colors.text }]}>San Francisco, CA</Text>
+        </View>
+
+        {agentInfo && (
+          <View style={commonStyles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={commonStyles.subtitle}>Your Agent</Text>
+              <TouchableOpacity onPress={clearAgentCode}>
+                <Text style={styles.clearText}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.agentInfo}>
+              <Text style={styles.agentName}>{agentInfo.name}</Text>
+              <Text style={styles.agentContact}>{agentInfo.phone}</Text>
+              <Text style={styles.agentContact}>{agentInfo.email}</Text>
+            </View>
           </View>
-        </GlassView>
+        )}
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.subtitle}>About PropertyGuru</Text>
+          <Text style={commonStyles.text}>
+            PropertyGuru is your comprehensive guide to property transactions in Victoria, Australia. 
+            We provide accurate calculators and information to help you understand all costs involved 
+            in buying or selling property.
+          </Text>
+        </View>
+
+        <TouchableOpacity 
+          style={commonStyles.card}
+          onPress={contactConveyancer}
+        >
+          <View style={styles.menuItem}>
+            <View style={styles.menuIcon}>
+              <IconSymbol
+                ios_icon_name="phone.fill"
+                android_material_icon_name="phone"
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>Contact Our Conveyancing Services</Text>
+              <Text style={styles.menuDescription}>Get professional help with your property transaction</Text>
+            </View>
+            <IconSymbol
+              ios_icon_name="chevron.right"
+              android_material_icon_name="chevron-right"
+              size={24}
+              color={colors.textSecondary}
+            />
+          </View>
+        </TouchableOpacity>
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.subtitle}>Features</Text>
+          <View style={styles.featureList}>
+            <View style={styles.featureItem}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={20}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Accurate cost calculators</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={20}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Real-time auction bidding calculator</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={20}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Comprehensive FAQ section</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <IconSymbol
+                ios_icon_name="checkmark.circle.fill"
+                android_material_icon_name="check-circle"
+                size={20}
+                color={colors.success}
+              />
+              <Text style={styles.featureText}>Victorian-specific information</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.subtitle}>Disclaimer</Text>
+          <Text style={commonStyles.textSecondary}>
+            All calculations provided by PropertyGuru are estimates only and should not be relied upon 
+            as exact figures. Property transaction costs can vary based on individual circumstances. 
+            Always consult with a qualified conveyancer or solicitor for accurate advice specific to 
+            your situation.
+          </Text>
+        </View>
+
+        <View style={commonStyles.card}>
+          <Text style={styles.versionText}>Version 1.0.0</Text>
+          <Text style={styles.copyrightText}>© 2025 PropertyGuru. All rights reserved.</Text>
+        </View>
+
+        <View style={styles.bottomPadding} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    // backgroundColor handled dynamically
-  },
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
-  contentContainer: {
-    padding: 20,
+  scrollView: {
+    flex: 1,
   },
-  contentContainerWithTabBar: {
-    paddingBottom: 100, // Extra padding for floating tab bar
+  scrollContent: {
+    paddingTop: 60,
+    paddingBottom: 120,
   },
-  profileHeader: {
+  header: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  appInfo: {
     alignItems: 'center',
-    borderRadius: 12,
-    padding: 32,
+    paddingVertical: 16,
+  },
+  appIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: colors.highlight,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
-    gap: 12,
   },
-  name: {
+  appName: {
     fontSize: 24,
-    fontWeight: 'bold',
-    // color handled dynamically
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
   },
-  email: {
-    fontSize: 16,
-    // color handled dynamically
+  appSlogan: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
-  section: {
-    borderRadius: 12,
-    padding: 20,
-    gap: 12,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  infoRow: {
+  clearText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  agentInfo: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  agentName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  agentContact: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  infoText: {
+  menuIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.highlight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuContent: {
+    flex: 1,
+  },
+  menuTitle: {
     fontSize: 16,
-    // color handled dynamically
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  menuDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  featureList: {
+    marginTop: 12,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureText: {
+    fontSize: 15,
+    color: colors.text,
+    marginLeft: 12,
+  },
+  versionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  copyrightText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  bottomPadding: {
+    height: 20,
   },
 });
