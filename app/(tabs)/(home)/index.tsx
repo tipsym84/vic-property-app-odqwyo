@@ -29,10 +29,12 @@ export default function HomeScreen() {
     try {
       const savedAgent = await AsyncStorage.getItem('agentInfo');
       const hasPaid = await AsyncStorage.getItem('hasPaid');
+      const storedAgentCode = await AsyncStorage.getItem('agentCode');
+      
       if (savedAgent) {
         setAgentInfo(JSON.parse(savedAgent));
         setIsUnlocked(true);
-      } else if (hasPaid) {
+      } else if (hasPaid || storedAgentCode) {
         setIsUnlocked(true);
       }
     } catch (error) {
@@ -61,6 +63,7 @@ export default function HomeScreen() {
     const agent = mockAgents[agentCode.toUpperCase()];
     if (agent) {
       await AsyncStorage.setItem('agentInfo', JSON.stringify(agent));
+      await AsyncStorage.setItem('agentCode', agentCode.toUpperCase());
       setAgentInfo(agent);
       setIsUnlocked(true);
       setShowCodeInput(false);
@@ -79,6 +82,7 @@ export default function HomeScreen() {
       );
       return;
     }
+    console.log('Navigating to:', route);
     router.push(route as any);
   };
 

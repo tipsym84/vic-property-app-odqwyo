@@ -1,12 +1,45 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CalculatorsScreen() {
   const router = useRouter();
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  useEffect(() => {
+    checkUnlockStatus();
+  }, []);
+
+  const checkUnlockStatus = async () => {
+    try {
+      const savedAgent = await AsyncStorage.getItem('agentInfo');
+      const hasPaid = await AsyncStorage.getItem('hasPaid');
+      const storedAgentCode = await AsyncStorage.getItem('agentCode');
+      
+      if (savedAgent || hasPaid || storedAgentCode) {
+        setIsUnlocked(true);
+      }
+    } catch (error) {
+      console.log('Error checking unlock status:', error);
+    }
+  };
+
+  const handleCalculatorPress = (route: string, title: string) => {
+    if (!isUnlocked) {
+      Alert.alert(
+        'App Locked',
+        'Please enter an agent code or purchase the app to access this feature.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    console.log('Navigating to calculator:', route);
+    router.push(route as any);
+  };
 
   const calculators = [
     {
@@ -65,32 +98,45 @@ export default function CalculatorsScreen() {
           </Text>
         </View>
 
+        {!isUnlocked && (
+          <View style={[commonStyles.card, styles.lockCard]}>
+            <IconSymbol 
+              ios_icon_name="lock.fill" 
+              android_material_icon_name="lock" 
+              size={32} 
+              color={colors.secondary}
+            />
+            <Text style={styles.lockText}>
+              Enter an agent code on the Profile tab to unlock all calculators.
+            </Text>
+          </View>
+        )}
+
         {calculators.map((calc, index) => (
           <React.Fragment key={index}>
-          <TouchableOpacity
-            key={calc.id}
-            style={[commonStyles.card, styles.calculatorCard]}
-            onPress={() => router.push(calc.route as any)}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: calc.color + '20' }]}>
+            <TouchableOpacity
+              style={[commonStyles.card, styles.calculatorCard, !isUnlocked && styles.lockedCard]}
+              onPress={() => handleCalculatorPress(calc.route, calc.title)}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: calc.color + '20' }]}>
+                <IconSymbol
+                  ios_icon_name={calc.icon}
+                  android_material_icon_name={calc.icon}
+                  size={32}
+                  color={calc.color}
+                />
+              </View>
+              <View style={styles.calculatorContent}>
+                <Text style={styles.calculatorTitle}>{calc.title}</Text>
+                <Text style={styles.calculatorDescription}>{calc.description}</Text>
+              </View>
               <IconSymbol
-                ios_icon_name={calc.icon}
-                android_material_icon_name={calc.icon}
-                size={32}
-                color={calc.color}
+                ios_icon_name="chevron.right"
+                android_material_icon_name="chevron-right"
+                size={24}
+                color={colors.textSecondary}
               />
-            </View>
-            <View style={styles.calculatorContent}>
-              <Text style={styles.calculatorTitle}>{calc.title}</Text>
-              <Text style={styles.calculatorDescription}>{calc.description}</Text>
-            </View>
-            <IconSymbol
-              ios_icon_name="chevron.right"
-              android_material_icon_name="chevron-right"
-              size={24}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
+            </TouchableOpacity>
           </React.Fragment>
         ))}
 
@@ -139,9 +185,25 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
+  lockCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.highlight,
+    paddingVertical: 16,
+  },
+  lockText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginLeft: 12,
+    lineHeight: 20,
+  },
   calculatorCard: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  lockedCard: {
+    opacity: 0.5,
   },
   iconContainer: {
     width: 56,
