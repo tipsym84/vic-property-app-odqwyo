@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [agentCode, setAgentCode] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   useEffect(() => {
     loadAgentInfo();
@@ -27,8 +28,12 @@ export default function HomeScreen() {
   const loadAgentInfo = async () => {
     try {
       const savedAgent = await AsyncStorage.getItem('agentInfo');
+      const hasPaid = await AsyncStorage.getItem('hasPaid');
       if (savedAgent) {
         setAgentInfo(JSON.parse(savedAgent));
+        setIsUnlocked(true);
+      } else if (hasPaid) {
+        setIsUnlocked(true);
       }
     } catch (error) {
       console.log('Error loading agent info:', error);
@@ -36,7 +41,6 @@ export default function HomeScreen() {
   };
 
   const handleCodeSubmit = async () => {
-    // Mock agent data - in production, this would fetch from a backend
     const mockAgents: { [key: string]: AgentInfo } = {
       'AGENT001': {
         code: 'AGENT001',
@@ -58,11 +62,24 @@ export default function HomeScreen() {
     if (agent) {
       await AsyncStorage.setItem('agentInfo', JSON.stringify(agent));
       setAgentInfo(agent);
+      setIsUnlocked(true);
       setShowCodeInput(false);
       setAgentCode('');
     } else {
-      alert('Invalid agent code. Please try again.');
+      Alert.alert('Invalid Code', 'Invalid agent code. Please try again.');
     }
+  };
+
+  const handleFeaturePress = (route: string) => {
+    if (!isUnlocked) {
+      Alert.alert(
+        'App Locked',
+        'Please enter an agent code or purchase the app to access this feature.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    router.push(route as any);
   };
 
   return (
@@ -76,6 +93,21 @@ export default function HomeScreen() {
           <Text style={styles.appName}>PropertyGuru</Text>
           <Text style={styles.slogan}>Real Estate Doesn&apos;t Have to be Overwhelming</Text>
         </View>
+
+        {!isUnlocked && (
+          <View style={[commonStyles.card, styles.lockCard]}>
+            <IconSymbol 
+              ios_icon_name="lock.fill" 
+              android_material_icon_name="lock" 
+              size={48} 
+              color={colors.secondary}
+            />
+            <Text style={styles.lockTitle}>App Locked</Text>
+            <Text style={styles.lockText}>
+              Enter an agent code or purchase the app to unlock all features.
+            </Text>
+          </View>
+        )}
 
         {agentInfo && (
           <View style={[commonStyles.card, styles.agentCard]}>
@@ -151,43 +183,9 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.subtitle}>Welcome to PropertyGuru</Text>
-          <Text style={commonStyles.text}>
-            Your comprehensive guide to property transactions in Victoria, Australia. 
-            We help you understand and calculate all costs associated with buying or selling property.
-          </Text>
-        </View>
-
         <TouchableOpacity 
-          style={[commonStyles.card, styles.featureCard]}
-          onPress={() => router.push('/(tabs)/calculators')}
-        >
-          <View style={styles.featureIcon}>
-            <IconSymbol 
-              ios_icon_name="calculator" 
-              android_material_icon_name="calculate" 
-              size={32} 
-              color={colors.primary}
-            />
-          </View>
-          <View style={styles.featureContent}>
-            <Text style={styles.featureTitle}>Cost Calculators</Text>
-            <Text style={styles.featureDescription}>
-              Calculate land transfer fees, stamp duty, and all associated costs
-            </Text>
-          </View>
-          <IconSymbol 
-            ios_icon_name="chevron.right" 
-            android_material_icon_name="chevron-right" 
-            size={24} 
-            color={colors.textSecondary}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[commonStyles.card, styles.featureCard]}
-          onPress={() => router.push('/auction-guru')}
+          style={[commonStyles.card, styles.featureCard, !isUnlocked && styles.lockedCard]}
+          onPress={() => handleFeaturePress('/auction-guru')}
         >
           <View style={styles.featureIcon}>
             <IconSymbol 
@@ -212,8 +210,34 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[commonStyles.card, styles.featureCard]}
-          onPress={() => router.push('/(tabs)/faq')}
+          style={[commonStyles.card, styles.featureCard, !isUnlocked && styles.lockedCard]}
+          onPress={() => handleFeaturePress('/(tabs)/calculators')}
+        >
+          <View style={styles.featureIcon}>
+            <IconSymbol 
+              ios_icon_name="calculator" 
+              android_material_icon_name="calculate" 
+              size={32} 
+              color={colors.primary}
+            />
+          </View>
+          <View style={styles.featureContent}>
+            <Text style={styles.featureTitle}>Cost Calculators</Text>
+            <Text style={styles.featureDescription}>
+              Calculate land transfer fees, stamp duty, and all associated costs
+            </Text>
+          </View>
+          <IconSymbol 
+            ios_icon_name="chevron.right" 
+            android_material_icon_name="chevron-right" 
+            size={24} 
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[commonStyles.card, styles.featureCard, !isUnlocked && styles.lockedCard]}
+          onPress={() => handleFeaturePress('/(tabs)/faq')}
         >
           <View style={styles.featureIcon}>
             <IconSymbol 
@@ -269,6 +293,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     fontStyle: 'italic',
+  },
+  lockCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: colors.highlight,
+  },
+  lockTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  lockText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   agentCard: {
     backgroundColor: colors.highlight,
@@ -350,6 +392,9 @@ const styles = StyleSheet.create({
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  lockedCard: {
+    opacity: 0.5,
   },
   featureIcon: {
     width: 56,

@@ -10,12 +10,28 @@ export default function CalculatorsScreen() {
 
   const calculators = [
     {
+      id: 'auction',
+      title: 'AuctionGuru',
+      description: 'Real-time bidding calculator with cash needed analysis',
+      icon: 'gavel',
+      route: '/auction-guru',
+      color: colors.secondary,
+    },
+    {
       id: 'buyer',
       title: 'Buyer Calculator',
       description: 'Calculate all costs for purchasing property',
       icon: 'home',
       route: '/buyer-calculator',
       color: colors.primary,
+    },
+    {
+      id: 'max-purchase',
+      title: 'Maximum Purchase Price',
+      description: 'Calculate the maximum property price you can afford',
+      icon: 'trending-up',
+      route: '/max-purchase-calculator',
+      color: colors.success,
     },
     {
       id: 'vendor',
@@ -26,20 +42,12 @@ export default function CalculatorsScreen() {
       color: colors.secondary,
     },
     {
-      id: 'auction',
-      title: 'AuctionGuru',
-      description: 'Real-time bidding calculator',
-      icon: 'gavel',
-      route: '/auction-guru',
-      color: colors.accent,
-    },
-    {
       id: 'reverse',
       title: 'Reverse Calculator',
       description: 'Calculate required sale price from desired net proceeds',
       icon: 'swap-horiz',
       route: '/reverse-calculator',
-      color: colors.success,
+      color: colors.accent,
     },
   ];
 
@@ -57,7 +65,8 @@ export default function CalculatorsScreen() {
           </Text>
         </View>
 
-        {calculators.map((calc) => (
+        {calculators.map((calc, index) => (
+          <React.Fragment key={index}>
           <TouchableOpacity
             key={calc.id}
             style={[commonStyles.card, styles.calculatorCard]}
@@ -82,6 +91,7 @@ export default function CalculatorsScreen() {
               color={colors.textSecondary}
             />
           </TouchableOpacity>
+          </React.Fragment>
         ))}
 
         <View style={commonStyles.card}>

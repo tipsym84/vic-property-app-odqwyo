@@ -5,16 +5,50 @@ import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 
+interface CommissionTier {
+  id: string;
+  fromPrice: string;
+  toPrice: string;
+  rate: string;
+}
+
 export default function VendorCalculatorScreen() {
   const router = useRouter();
   const [salePrice, setSalePrice] = useState('');
-  const [agentCommission, setAgentCommission] = useState('2.5');
   const [advertisingCosts, setAdvertisingCosts] = useState('2000');
   const [legalFees, setLegalFees] = useState('1200');
   const [mortgageBalance, setMortgageBalance] = useState('');
+  
+  const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([
+    { id: '1', fromPrice: '0', toPrice: '500000', rate: '2.5' },
+    { id: '2', fromPrice: '500000', toPrice: '1000000', rate: '2.0' },
+  ]);
+
+  const calculateCommission = (price: number): number => {
+    let totalCommission = 0;
+    
+    const sortedTiers = [...commissionTiers].sort((a, b) => 
+      parseFloat(a.fromPrice) - parseFloat(b.fromPrice)
+    );
+    
+    for (const tier of sortedTiers) {
+      const from = parseFloat(tier.fromPrice) || 0;
+      const to = parseFloat(tier.toPrice) || Infinity;
+      const rate = parseFloat(tier.rate) || 0;
+      
+      if (price > from) {
+        const applicableAmount = Math.min(price, to) - from;
+        if (applicableAmount > 0) {
+          totalCommission += (applicableAmount * rate) / 100;
+        }
+      }
+    }
+    
+    return totalCommission;
+  };
 
   const price = parseFloat(salePrice) || 0;
-  const commission = (price * (parseFloat(agentCommission) || 0)) / 100;
+  const commission = calculateCommission(price);
   const advertising = parseFloat(advertisingCosts) || 0;
   const legal = parseFloat(legalFees) || 0;
   const mortgage = parseFloat(mortgageBalance) || 0;
@@ -22,6 +56,29 @@ export default function VendorCalculatorScreen() {
 
   const totalCosts = commission + advertising + legal + dischargeFee;
   const netProceeds = price - totalCosts - mortgage;
+
+  const addCommissionTier = () => {
+    const newId = (commissionTiers.length + 1).toString();
+    const lastTier = commissionTiers[commissionTiers.length - 1];
+    const newFrom = lastTier ? lastTier.toPrice : '0';
+    
+    setCommissionTiers([
+      ...commissionTiers,
+      { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
+    ]);
+  };
+
+  const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
+    setCommissionTiers(commissionTiers.map(tier => 
+      tier.id === id ? { ...tier, [field]: value } : tier
+    ));
+  };
+
+  const removeCommissionTier = (id: string) => {
+    if (commissionTiers.length > 1) {
+      setCommissionTiers(commissionTiers.filter(tier => tier.id !== id));
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -52,16 +109,78 @@ export default function VendorCalculatorScreen() {
             value={salePrice}
             onChangeText={setSalePrice}
           />
+        </View>
 
-          <Text style={commonStyles.label}>Agent Commission (%)</Text>
-          <TextInput
-            style={commonStyles.input}
-            placeholder="Enter commission percentage"
-            keyboardType="numeric"
-            value={agentCommission}
-            onChangeText={setAgentCommission}
-          />
+        <View style={commonStyles.card}>
+          <View style={styles.sectionHeader}>
+            <Text style={commonStyles.subtitle}>Agent Commission Tiers</Text>
+            <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
 
+          {commissionTiers.map((tier, index) => (
+            <React.Fragment key={index}>
+            <View key={tier.id} style={styles.tierContainer}>
+              <View style={styles.tierHeader}>
+                <Text style={styles.tierLabel}>Tier {index + 1}</Text>
+                {commissionTiers.length > 1 && (
+                  <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
+                    <IconSymbol
+                      ios_icon_name="trash"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <View style={styles.tierRow}>
+                <View style={styles.tierInputContainer}>
+                  <Text style={styles.tierInputLabel}>From ($)</Text>
+                  <TextInput
+                    style={[commonStyles.input, styles.tierInput]}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    value={tier.fromPrice}
+                    onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
+                  />
+                </View>
+                
+                <View style={styles.tierInputContainer}>
+                  <Text style={styles.tierInputLabel}>To ($)</Text>
+                  <TextInput
+                    style={[commonStyles.input, styles.tierInput]}
+                    placeholder="500000"
+                    keyboardType="numeric"
+                    value={tier.toPrice}
+                    onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
+                  />
+                </View>
+                
+                <View style={styles.tierInputContainer}>
+                  <Text style={styles.tierInputLabel}>Rate (%)</Text>
+                  <TextInput
+                    style={[commonStyles.input, styles.tierInput]}
+                    placeholder="2.5"
+                    keyboardType="numeric"
+                    value={tier.rate}
+                    onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
+                  />
+                </View>
+              </View>
+            </View>
+            </React.Fragment>
+          ))}
+        </View>
+
+        <View style={commonStyles.card}>
           <Text style={commonStyles.label}>Advertising Costs ($)</Text>
           <TextInput
             style={commonStyles.input}
@@ -101,7 +220,7 @@ export default function VendorCalculatorScreen() {
           <View style={styles.divider} />
 
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Agent Commission ({agentCommission}%)</Text>
+            <Text style={styles.resultLabel}>Agent Commission</Text>
             <Text style={[styles.resultValue, styles.costValue]}>-${commission.toFixed(2)}</Text>
           </View>
 
@@ -188,6 +307,50 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 16,
     paddingBottom: 120,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addButton: {
+    padding: 4,
+  },
+  tierContainer: {
+    backgroundColor: colors.highlight,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  tierHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tierLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  tierRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tierInputContainer: {
+    flex: 1,
+  },
+  tierInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  tierInput: {
+    marginVertical: 0,
+    fontSize: 14,
+    paddingVertical: 8,
   },
   resultsCard: {
     backgroundColor: colors.highlight,

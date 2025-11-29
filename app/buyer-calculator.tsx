@@ -14,7 +14,6 @@ export default function BuyerCalculatorScreen() {
   const [mortgageAmount, setMortgageAmount] = useState('');
 
   const calculateLandTransferFee = (price: number): number => {
-    // Simplified calculation based on Victorian land transfer fees
     if (price <= 25000) return 110;
     if (price <= 130000) return 110 + ((price - 25000) / 1000) * 2.46;
     if (price <= 960000) return 368.30 + ((price - 130000) / 1000) * 5.06;
@@ -22,21 +21,29 @@ export default function BuyerCalculatorScreen() {
   };
 
   const calculateStampDuty = (price: number, firstHome: boolean, concession: boolean): number => {
-    // Simplified stamp duty calculation
     if (firstHome && price <= 600000) return 0;
-    if (firstHome && price <= 750000) {
+    
+    if (firstHome && price > 600000 && price <= 750000) {
       const dutyFree = 600000;
       const dutyableAmount = price - dutyFree;
       return dutyableAmount * 0.05;
     }
     
     let duty = 0;
-    if (price <= 25000) duty = price * 0.014;
-    else if (price <= 130000) duty = 350 + (price - 25000) * 0.024;
-    else if (price <= 960000) duty = 2870 + (price - 130000) * 0.06;
-    else duty = 52670 + (price - 960000) * 0.055;
+    if (price <= 25000) {
+      duty = price * 0.014;
+    } else if (price <= 130000) {
+      duty = 350 + (price - 25000) * 0.024;
+    } else if (price <= 960000) {
+      duty = 2870 + (price - 130000) * 0.06;
+    } else {
+      duty = 52670 + (price - 960000) * 0.055;
+    }
 
-    if (concession) duty *= 0.5;
+    if (concession && !firstHome) {
+      duty *= 0.5;
+    }
+    
     return duty;
   };
 
@@ -87,7 +94,13 @@ export default function BuyerCalculatorScreen() {
           />
 
           <View style={styles.switchRow}>
-            <Text style={commonStyles.label}>First Home Buyer</Text>
+            <View style={styles.switchLabelContainer}>
+              <Text style={commonStyles.label}>First Home Buyer</Text>
+              <Text style={styles.switchHint}>
+                {isFirstHomeBuyer && price <= 600000 && '(No stamp duty!)'}
+                {isFirstHomeBuyer && price > 600000 && price <= 750000 && '(Reduced stamp duty)'}
+              </Text>
+            </View>
             <Switch
               value={isFirstHomeBuyer}
               onValueChange={setIsFirstHomeBuyer}
@@ -169,6 +182,15 @@ export default function BuyerCalculatorScreen() {
         </View>
 
         <View style={commonStyles.card}>
+          <Text style={commonStyles.subtitle}>First Home Buyer Benefits</Text>
+          <Text style={commonStyles.textSecondary}>
+            - Properties up to $600,000: No stamp duty{'\n'}
+            - Properties $600,001 to $750,000: Reduced stamp duty (5% on amount over $600k){'\n'}
+            - Properties over $750,000: Standard stamp duty rates apply
+          </Text>
+        </View>
+
+        <View style={commonStyles.card}>
           <Text style={commonStyles.textSecondary}>
             * These calculations are estimates only. Actual costs may vary. 
             Please consult with a conveyancer or solicitor for exact figures.
@@ -220,6 +242,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginVertical: 12,
+  },
+  switchLabelContainer: {
+    flex: 1,
+  },
+  switchHint: {
+    fontSize: 12,
+    color: colors.success,
+    marginTop: 2,
   },
   resultsCard: {
     backgroundColor: colors.highlight,

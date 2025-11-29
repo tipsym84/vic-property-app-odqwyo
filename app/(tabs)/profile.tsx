@@ -4,8 +4,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const [agentInfo, setAgentInfo] = useState<any>(null);
 
   useEffect(() => {
@@ -26,15 +28,26 @@ export default function ProfileScreen() {
   const clearAgentCode = async () => {
     Alert.alert(
       'Clear Agent Code',
-      'Are you sure you want to remove the agent information?',
+      'Are you sure you want to remove the agent information? This will lock the app.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
-            await AsyncStorage.removeItem('agentInfo');
-            setAgentInfo(null);
+            try {
+              await AsyncStorage.removeItem('agentInfo');
+              setAgentInfo(null);
+              Alert.alert('Success', 'Agent information cleared. The app is now locked.', [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/(tabs)/(home)/'),
+                },
+              ]);
+            } catch (error) {
+              console.log('Error clearing agent info:', error);
+              Alert.alert('Error', 'Failed to clear agent information.');
+            }
           },
         },
       ]

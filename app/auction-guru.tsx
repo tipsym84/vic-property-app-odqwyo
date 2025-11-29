@@ -1,17 +1,30 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
-import Slider from '@react-native-community/slider';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+
+interface CostItem {
+  id: string;
+  name: string;
+  amount: string;
+}
 
 export default function AuctionGuruScreen() {
   const router = useRouter();
   const [currentBid, setCurrentBid] = useState(500000);
   const [bidIncrement, setBidIncrement] = useState(5000);
   const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
-  const [estimatedCosts, setEstimatedCosts] = useState(15000);
+  const [loanPreApproval, setLoanPreApproval] = useState('');
+  const [savings, setSavings] = useState('');
+  const [viewMode, setViewMode] = useState<'total' | 'cash' | 'remaining'>('cash');
+  
+  const [costItems, setCostItems] = useState<CostItem[]>([
+    { id: '1', name: 'Legal Fees', amount: '1500' },
+    { id: '2', name: 'Building Inspection', amount: '500' },
+    { id: '3', name: 'Pest Inspection', amount: '300' },
+  ]);
 
   const calculateStampDuty = (price: number, firstHome: boolean): number => {
     if (firstHome && price <= 600000) return 0;
@@ -30,12 +43,50 @@ export default function AuctionGuruScreen() {
     return duty;
   };
 
+  const calculateLandTransferFee = (price: number): number => {
+    if (price <= 25000) return 110;
+    if (price <= 130000) return 110 + ((price - 25000) / 1000) * 2.46;
+    if (price <= 960000) return 368.30 + ((price - 130000) / 1000) * 5.06;
+    return 4568.10 + ((price - 960000) / 1000) * 5.06;
+  };
+
   const stampDuty = calculateStampDuty(currentBid, isFirstHomeBuyer);
-  const totalCost = currentBid + stampDuty + estimatedCosts;
+  const landTransferFee = calculateLandTransferFee(currentBid);
+  const mortgageReg = parseFloat(loanPreApproval) > 0 ? 119.90 : 0;
+  const caveatFee = 119.90;
+  
+  const additionalCosts = costItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const totalCosts = stampDuty + landTransferFee + mortgageReg + caveatFee + additionalCosts;
+  const totalRequired = currentBid + totalCosts;
+  
+  const loanAmount = parseFloat(loanPreApproval) || 0;
+  const cashNeeded = totalRequired - loanAmount;
+  const savingsAmount = parseFloat(savings) || 0;
+  const savingsRemaining = savingsAmount - cashNeeded;
 
   const adjustBid = (amount: number) => {
     setCurrentBid(Math.max(0, currentBid + amount));
   };
+
+  const addCostItem = () => {
+    const newId = (costItems.length + 1).toString();
+    setCostItems([...costItems, { id: newId, name: '', amount: '' }]);
+  };
+
+  const updateCostItem = (id: string, field: 'name' | 'amount', value: string) => {
+    setCostItems(costItems.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const removeCostItem = (id: string) => {
+    if (costItems.length > 1) {
+      setCostItems(costItems.filter(item => item.id !== id));
+    }
+  };
+
+  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
+  const currentIncrementIndex = incrementOptions.indexOf(bidIncrement);
 
   return (
     <View style={styles.container}>
@@ -70,7 +121,7 @@ export default function AuctionGuruScreen() {
                 ios_icon_name="minus.circle.fill"
                 android_material_icon_name="remove-circle"
                 size={48}
-                color={colors.secondary}
+                color="#ffffff"
               />
             </TouchableOpacity>
 
@@ -87,33 +138,121 @@ export default function AuctionGuruScreen() {
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
                 size={48}
-                color={colors.success}
+                color="#ffffff"
               />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.sliderContainer}>
-            <Text style={styles.sliderLabel}>Adjust Bid Increment</Text>
-            <Slider
-              style={styles.slider}
-              minimumValue={1000}
-              maximumValue={50000}
-              step={1000}
-              value={bidIncrement}
-              onValueChange={setBidIncrement}
-              minimumTrackTintColor={colors.primary}
-              maximumTrackTintColor={colors.border}
-              thumbTintColor={colors.primary}
-            />
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabelText}>$1k</Text>
-              <Text style={styles.sliderLabelText}>$50k</Text>
-            </View>
+          <View style={styles.incrementSelector}>
+            <Text style={styles.incrementSelectorLabel}>Select Bid Increment:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.incrementOptions}
+            >
+              {incrementOptions.map((option, index) => (
+                <React.Fragment key={index}>
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.incrementOption,
+                    bidIncrement === option && styles.incrementOptionActive
+                  ]}
+                  onPress={() => setBidIncrement(option)}
+                >
+                  <Text style={[
+                    styles.incrementOptionText,
+                    bidIncrement === option && styles.incrementOptionTextActive
+                  ]}>
+                    ${(option / 1000).toFixed(option < 1000 ? 0 : 0)}k
+                  </Text>
+                </TouchableOpacity>
+                </React.Fragment>
+              ))}
+            </ScrollView>
           </View>
         </View>
 
+        <View style={commonStyles.card}>
+          <View style={styles.switchRow}>
+            <Text style={commonStyles.label}>First Home Buyer</Text>
+            <Switch
+              value={isFirstHomeBuyer}
+              onValueChange={setIsFirstHomeBuyer}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <Text style={commonStyles.label}>Loan Pre-Approval Amount ($)</Text>
+          <TextInput
+            style={commonStyles.input}
+            placeholder="Enter pre-approved loan amount"
+            keyboardType="numeric"
+            value={loanPreApproval}
+            onChangeText={setLoanPreApproval}
+          />
+
+          {viewMode === 'remaining' && (
+            <>
+              <Text style={commonStyles.label}>Your Savings ($)</Text>
+              <TextInput
+                style={commonStyles.input}
+                placeholder="Enter your total savings"
+                keyboardType="numeric"
+                value={savings}
+                onChangeText={setSavings}
+              />
+            </>
+          )}
+        </View>
+
+        <View style={commonStyles.card}>
+          <View style={styles.sectionHeader}>
+            <Text style={commonStyles.subtitle}>Additional Costs</Text>
+            <TouchableOpacity onPress={addCostItem} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {costItems.map((item, index) => (
+            <React.Fragment key={index}>
+            <View key={item.id} style={styles.costItemRow}>
+              <TextInput
+                style={[commonStyles.input, styles.costNameInput]}
+                placeholder="Cost name"
+                value={item.name}
+                onChangeText={(value) => updateCostItem(item.id, 'name', value)}
+              />
+              <TextInput
+                style={[commonStyles.input, styles.costAmountInput]}
+                placeholder="Amount"
+                keyboardType="numeric"
+                value={item.amount}
+                onChangeText={(value) => updateCostItem(item.id, 'amount', value)}
+              />
+              {costItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeCostItem(item.id)}>
+                  <IconSymbol
+                    ios_icon_name="trash"
+                    android_material_icon_name="delete"
+                    size={24}
+                    color={colors.secondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+            </React.Fragment>
+          ))}
+        </View>
+
         <View style={[commonStyles.card, styles.resultsCard]}>
-          <Text style={styles.resultsTitle}>Real-Time Cost Breakdown</Text>
+          <Text style={styles.resultsTitle}>Cost Breakdown</Text>
           
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Purchase Price</Text>
@@ -126,57 +265,119 @@ export default function AuctionGuruScreen() {
           </View>
 
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Other Costs (est.)</Text>
-            <Text style={styles.resultValue}>${estimatedCosts.toLocaleString()}</Text>
+            <Text style={styles.resultLabel}>Land Transfer Fee</Text>
+            <Text style={styles.resultValue}>${landTransferFee.toFixed(2)}</Text>
           </View>
+
+          {mortgageReg > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Mortgage Registration</Text>
+              <Text style={styles.resultValue}>${mortgageReg.toFixed(2)}</Text>
+            </View>
+          )}
+
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Caveat Lodgement</Text>
+            <Text style={styles.resultValue}>${caveatFee.toFixed(2)}</Text>
+          </View>
+
+          {costItems.map((item, index) => (
+            <React.Fragment key={index}>
+            {item.name && parseFloat(item.amount) > 0 && (
+              <View key={item.id} style={styles.resultRow}>
+                <Text style={styles.resultLabel}>{item.name}</Text>
+                <Text style={styles.resultValue}>${parseFloat(item.amount).toFixed(2)}</Text>
+              </View>
+            )}
+            </React.Fragment>
+          ))}
 
           <View style={styles.divider} />
 
-          <View style={styles.totalRow}>
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Total Costs</Text>
+            <Text style={styles.resultValue}>${totalCosts.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.resultRow}>
             <Text style={styles.totalLabel}>Total Amount Required</Text>
-            <Text style={styles.totalValue}>${totalCost.toLocaleString()}</Text>
+            <Text style={styles.totalValue}>${totalRequired.toLocaleString()}</Text>
           </View>
+
+          {loanAmount > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Less: Loan Pre-Approval</Text>
+              <Text style={[styles.resultValue, { color: colors.success }]}>-${loanAmount.toLocaleString()}</Text>
+            </View>
+          )}
         </View>
 
         <View style={commonStyles.card}>
-          <Text style={commonStyles.subtitle}>Quick Bid Adjustments</Text>
-          <View style={styles.quickButtons}>
-            <TouchableOpacity 
-              style={styles.quickButton}
-              onPress={() => adjustBid(-10000)}
+          <Text style={commonStyles.subtitle}>View Mode</Text>
+          <View style={styles.viewModeButtons}>
+            <TouchableOpacity
+              style={[styles.viewModeButton, viewMode === 'total' && styles.viewModeButtonActive]}
+              onPress={() => setViewMode('total')}
             >
-              <Text style={styles.quickButtonText}>-$10k</Text>
+              <Text style={[styles.viewModeButtonText, viewMode === 'total' && styles.viewModeButtonTextActive]}>
+                Total Required
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.quickButton}
-              onPress={() => adjustBid(-5000)}
+            <TouchableOpacity
+              style={[styles.viewModeButton, viewMode === 'cash' && styles.viewModeButtonActive]}
+              onPress={() => setViewMode('cash')}
             >
-              <Text style={styles.quickButtonText}>-$5k</Text>
+              <Text style={[styles.viewModeButtonText, viewMode === 'cash' && styles.viewModeButtonTextActive]}>
+                Cash Needed
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.quickButton}
-              onPress={() => adjustBid(5000)}
+            <TouchableOpacity
+              style={[styles.viewModeButton, viewMode === 'remaining' && styles.viewModeButtonActive]}
+              onPress={() => setViewMode('remaining')}
             >
-              <Text style={styles.quickButtonText}>+$5k</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.quickButton}
-              onPress={() => adjustBid(10000)}
-            >
-              <Text style={styles.quickButtonText}>+$10k</Text>
+              <Text style={[styles.viewModeButtonText, viewMode === 'remaining' && styles.viewModeButtonTextActive]}>
+                Savings Remaining
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.textSecondary}>
-            * Use this calculator during an auction to see your true costs in real-time. 
-            Adjust the bid increment to match the auctioneer&apos;s increments.
-          </Text>
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      <View style={styles.pinnedFooter}>
+        <View style={styles.pinnedContent}>
+          {viewMode === 'total' && (
+            <>
+              <Text style={styles.pinnedLabel}>Total Amount Required</Text>
+              <Text style={styles.pinnedValue}>${totalRequired.toLocaleString()}</Text>
+            </>
+          )}
+          {viewMode === 'cash' && (
+            <>
+              <Text style={styles.pinnedLabel}>Cash Needed</Text>
+              <Text style={styles.pinnedValue}>${cashNeeded.toLocaleString()}</Text>
+              <Text style={styles.pinnedSubtext}>
+                (Total ${totalRequired.toLocaleString()} - Loan ${loanAmount.toLocaleString()})
+              </Text>
+            </>
+          )}
+          {viewMode === 'remaining' && (
+            <>
+              <Text style={styles.pinnedLabel}>Savings Remaining</Text>
+              <Text style={[
+                styles.pinnedValue,
+                { color: savingsRemaining >= 0 ? colors.success : colors.secondary }
+              ]}>
+                ${savingsRemaining.toLocaleString()}
+              </Text>
+              <Text style={styles.pinnedSubtext}>
+                (Savings ${savingsAmount.toLocaleString()} - Cash Needed ${cashNeeded.toLocaleString()})
+              </Text>
+            </>
+          )}
+        </View>
+      </View>
     </View>
   );
 }
@@ -213,7 +414,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 16,
-    paddingBottom: 120,
+    paddingBottom: 200,
   },
   bidCard: {
     backgroundColor: colors.primary,
@@ -254,27 +455,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
-  sliderContainer: {
+  incrementSelector: {
     width: '100%',
+    marginTop: 8,
   },
-  sliderLabel: {
+  incrementSelectorLabel: {
     fontSize: 14,
     color: '#ffffff',
     opacity: 0.9,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  slider: {
-    width: '100%',
-    height: 40,
+  incrementOptions: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 4,
   },
-  sliderLabels: {
+  incrementOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  incrementOptionActive: {
+    backgroundColor: '#ffffff',
+  },
+  incrementOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  incrementOptionTextActive: {
+    color: colors.primary,
+  },
+  switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  sliderLabelText: {
-    fontSize: 12,
-    color: '#ffffff',
-    opacity: 0.7,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  addButton: {
+    padding: 4,
+  },
+  costItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  costNameInput: {
+    flex: 2,
+    marginVertical: 0,
+  },
+  costAmountInput: {
+    flex: 1,
+    marginVertical: 0,
   },
   resultsCard: {
     backgroundColor: colors.highlight,
@@ -305,40 +547,80 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: 12,
   },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
   totalLabel: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.text,
   },
   totalValue: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.primary,
   },
-  quickButtons: {
+  viewModeButtons: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
     marginTop: 12,
   },
-  quickButton: {
+  viewModeButton: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.highlight,
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
   },
-  quickButtonText: {
-    fontSize: 16,
+  viewModeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  viewModeButtonText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  viewModeButtonTextActive: {
+    color: '#ffffff',
+  },
+  pinnedFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.primary,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  pinnedContent: {
+    alignItems: 'center',
+  },
+  pinnedLabel: {
+    fontSize: 16,
+    color: '#ffffff',
+    opacity: 0.9,
+    marginBottom: 8,
+  },
+  pinnedValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  pinnedSubtext: {
+    fontSize: 12,
+    color: '#ffffff',
+    opacity: 0.8,
+    marginTop: 4,
   },
   bottomPadding: {
     height: 20,
