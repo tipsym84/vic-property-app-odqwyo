@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Switch } from 'react-native';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,9 +18,15 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  
+  // User profile toggles
+  const [isPrimaryResidence, setIsPrimaryResidence] = useState(true);
+  const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
+  const [isConcessionCardHolder, setIsConcessionCardHolder] = useState(false);
 
   useEffect(() => {
     loadAgentInfo();
+    loadUserProfile();
   }, []);
 
   const loadAgentInfo = async () => {
@@ -40,9 +46,61 @@ export default function ProfileScreen() {
     }
   };
 
+  const loadUserProfile = async () => {
+    try {
+      const primaryResidence = await AsyncStorage.getItem('isPrimaryResidence');
+      const firstHomeBuyer = await AsyncStorage.getItem('isFirstHomeBuyer');
+      const concessionCard = await AsyncStorage.getItem('isConcessionCardHolder');
+      
+      if (primaryResidence !== null) setIsPrimaryResidence(primaryResidence === 'true');
+      if (firstHomeBuyer !== null) setIsFirstHomeBuyer(firstHomeBuyer === 'true');
+      if (concessionCard !== null) setIsConcessionCardHolder(concessionCard === 'true');
+    } catch (error) {
+      console.log('Error loading user profile:', error);
+    }
+  };
+
+  const saveUserProfile = async () => {
+    try {
+      await AsyncStorage.setItem('isPrimaryResidence', isPrimaryResidence.toString());
+      await AsyncStorage.setItem('isFirstHomeBuyer', isFirstHomeBuyer.toString());
+      await AsyncStorage.setItem('isConcessionCardHolder', isConcessionCardHolder.toString());
+      console.log('User profile saved successfully');
+    } catch (error) {
+      console.log('Error saving user profile:', error);
+    }
+  };
+
+  const handlePrimaryResidenceToggle = async (value: boolean) => {
+    setIsPrimaryResidence(value);
+    if (!value) {
+      // If not primary residence, disable first home buyer and concession card
+      setIsFirstHomeBuyer(false);
+      setIsConcessionCardHolder(false);
+    }
+    await AsyncStorage.setItem('isPrimaryResidence', value.toString());
+    await AsyncStorage.setItem('isFirstHomeBuyer', (!value ? false : isFirstHomeBuyer).toString());
+    await AsyncStorage.setItem('isConcessionCardHolder', (!value ? false : isConcessionCardHolder).toString());
+  };
+
+  const handleFirstHomeBuyerToggle = async (value: boolean) => {
+    setIsFirstHomeBuyer(value);
+    if (value) {
+      // If first home buyer, disable concession card
+      setIsConcessionCardHolder(false);
+      await AsyncStorage.setItem('isConcessionCardHolder', 'false');
+    }
+    await AsyncStorage.setItem('isFirstHomeBuyer', value.toString());
+  };
+
+  const handleConcessionCardToggle = async (value: boolean) => {
+    setIsConcessionCardHolder(value);
+    await AsyncStorage.setItem('isConcessionCardHolder', value.toString());
+  };
+
   const clearAgentData = async () => {
     Alert.alert(
-      'Clear Agent',
+      'Clear Agent Details',
       'Are you sure you want to clear the agent details? This will lock the app.',
       [
         {
@@ -54,15 +112,24 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Clear all agent-related data
               await AsyncStorage.removeItem('agentCode');
               await AsyncStorage.removeItem('agentInfo');
               await AsyncStorage.removeItem('agentName');
+              await AsyncStorage.removeItem('hasPaid');
+              
+              // Update state
               setAgentInfo(null);
               setIsUnlocked(false);
+              
+              console.log('Agent details cleared successfully');
               Alert.alert('Success', 'Agent details cleared. The app is now locked.');
+              
+              // Navigate to home
+              router.push('/(tabs)/(home)/');
             } catch (error) {
               console.log('Error clearing agent data:', error);
-              Alert.alert('Error', 'Failed to clear agent details.');
+              Alert.alert('Error', 'Failed to clear agent details. Please try again.');
             }
           },
         },
@@ -145,6 +212,79 @@ export default function ProfileScreen() {
             </Text>
           </View>
         )}
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.subtitle}>Property Purchase Settings</Text>
+          <Text style={[commonStyles.textSecondary, { marginBottom: 16 }]}>
+            These settings will be used to calculate stamp duty accurately across all calculators.
+          </Text>
+
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleLabelContainer}>
+              <Text style={styles.toggleLabel}>Primary Residence</Text>
+              <Text style={styles.toggleHint}>
+                Is this property your primary place of residence?
+              </Text>
+            </View>
+            <Switch
+              value={isPrimaryResidence}
+              onValueChange={handlePrimaryResidenceToggle}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <View style={[styles.toggleRow, !isPrimaryResidence && styles.disabledRow]}>
+            <View style={styles.toggleLabelContainer}>
+              <Text style={[styles.toggleLabel, !isPrimaryResidence && styles.disabledText]}>
+                First Home Owner
+              </Text>
+              <Text style={[styles.toggleHint, !isPrimaryResidence && styles.disabledText]}>
+                Is this your first home purchase?
+              </Text>
+              {!isPrimaryResidence && (
+                <Text style={styles.disabledNote}>
+                  (Only available for primary residence)
+                </Text>
+              )}
+            </View>
+            <Switch
+              value={isFirstHomeBuyer}
+              onValueChange={handleFirstHomeBuyerToggle}
+              disabled={!isPrimaryResidence}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <View style={[styles.toggleRow, (!isPrimaryResidence || isFirstHomeBuyer) && styles.disabledRow]}>
+            <View style={styles.toggleLabelContainer}>
+              <Text style={[styles.toggleLabel, (!isPrimaryResidence || isFirstHomeBuyer) && styles.disabledText]}>
+                Concession Card Holder
+              </Text>
+              <Text style={[styles.toggleHint, (!isPrimaryResidence || isFirstHomeBuyer) && styles.disabledText]}>
+                Do you hold an eligible concession card?
+              </Text>
+              {!isPrimaryResidence && (
+                <Text style={styles.disabledNote}>
+                  (Only available for primary residence)
+                </Text>
+              )}
+              {isFirstHomeBuyer && (
+                <Text style={styles.disabledNote}>
+                  (Not available for first home buyers)
+                </Text>
+              )}
+            </View>
+            <Switch
+              value={isConcessionCardHolder}
+              onValueChange={handleConcessionCardToggle}
+              disabled={!isPrimaryResidence || isFirstHomeBuyer}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.card}
+            />
+          </View>
+        </View>
 
         <View style={commonStyles.card}>
           <Text style={commonStyles.subtitle}>About PropertyGuru</Text>
@@ -273,6 +413,41 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  disabledRow: {
+    opacity: 0.5,
+  },
+  toggleLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  toggleHint: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  disabledText: {
+    color: colors.textSecondary,
+  },
+  disabledNote: {
+    fontSize: 11,
+    color: colors.secondary,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   codeList: {
     marginTop: 12,

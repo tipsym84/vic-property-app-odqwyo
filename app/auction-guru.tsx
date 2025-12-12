@@ -1,9 +1,11 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/utils/stampDutyCalculations';
 
 interface CostItem {
   id: string;
@@ -15,10 +17,10 @@ export default function AuctionGuruScreen() {
   const router = useRouter();
   const [currentBid, setCurrentBid] = useState(500000);
   const [bidIncrement, setBidIncrement] = useState(5000);
-  const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
   const [loanPreApproval, setLoanPreApproval] = useState('');
   const [savings, setSavings] = useState('');
   const [viewMode, setViewMode] = useState<'total' | 'cash' | 'remaining'>('cash');
+  const [concessionAlertShown, setConcessionAlertShown] = useState(false);
   
   const [costItems, setCostItems] = useState<CostItem[]>([
     { id: '1', name: 'Legal Fees', amount: '1500' },
@@ -26,31 +28,45 @@ export default function AuctionGuruScreen() {
     { id: '3', name: 'Pest Inspection', amount: '300' },
   ]);
 
-  const calculateStampDuty = (price: number, firstHome: boolean): number => {
-    if (firstHome && price <= 600000) return 0;
-    if (firstHome && price <= 750000) {
-      const dutyFree = 600000;
-      const dutyableAmount = price - dutyFree;
-      return dutyableAmount * 0.05;
+  // User profile from AsyncStorage
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    isPrimaryResidence: true,
+    isFirstHomeBuyer: false,
+    isConcessionCardHolder: false,
+  });
+
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const primaryResidence = await AsyncStorage.getItem('isPrimaryResidence');
+      const firstHomeBuyer = await AsyncStorage.getItem('isFirstHomeBuyer');
+      const concessionCard = await AsyncStorage.getItem('isConcessionCardHolder');
+      
+      setUserProfile({
+        isPrimaryResidence: primaryResidence === 'true',
+        isFirstHomeBuyer: firstHomeBuyer === 'true',
+        isConcessionCardHolder: concessionCard === 'true',
+      });
+    } catch (error) {
+      console.log('Error loading user profile:', error);
     }
-    
-    let duty = 0;
-    if (price <= 25000) duty = price * 0.014;
-    else if (price <= 130000) duty = 350 + (price - 25000) * 0.024;
-    else if (price <= 960000) duty = 2870 + (price - 130000) * 0.06;
-    else duty = 52670 + (price - 960000) * 0.055;
-
-    return duty;
   };
 
-  const calculateLandTransferFee = (price: number): number => {
-    if (price <= 25000) return 110;
-    if (price <= 130000) return 110 + ((price - 25000) / 1000) * 2.46;
-    if (price <= 960000) return 368.30 + ((price - 130000) / 1000) * 5.06;
-    return 4568.10 + ((price - 960000) / 1000) * 5.06;
+  const showConcessionAlert = () => {
+    if (!concessionAlertShown) {
+      Alert.alert(
+        'Important Notice',
+        'This calculation applies to contracts signed on or after 1 July 2023. If your contract was signed before this date please seek legal advice.',
+        [{ text: 'OK' }]
+      );
+      setConcessionAlertShown(true);
+    }
   };
 
-  const stampDuty = calculateStampDuty(currentBid, isFirstHomeBuyer);
+  const stampDuty = calculateStampDuty(currentBid, userProfile, showConcessionAlert);
   const landTransferFee = calculateLandTransferFee(currentBid);
   const mortgageReg = parseFloat(loanPreApproval) > 0 ? 119.90 : 0;
   const caveatFee = 119.90;
@@ -86,7 +102,6 @@ export default function AuctionGuruScreen() {
   };
 
   const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
-  const currentIncrementIndex = incrementOptions.indexOf(bidIncrement);
 
   return (
     <View style={styles.container}>
@@ -108,6 +123,33 @@ export default function AuctionGuruScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={commonStyles.card}>
+          <View style={styles.profileBanner}>
+            <IconSymbol
+              ios_icon_name="person.circle"
+              android_material_icon_name="account-circle"
+              size={24}
+              color={colors.primary}
+            />
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileLabel}>Using your profile settings:</Text>
+              <Text style={styles.profileValue}>
+                {userProfile.isPrimaryResidence ? 'Primary Residence' : 'Not Primary Residence'}
+                {userProfile.isFirstHomeBuyer && ' • First Home Buyer'}
+                {userProfile.isConcessionCardHolder && ' • Concession Card'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Bid</Text>
           <Text style={styles.bidAmount}>${currentBid.toLocaleString()}</Text>
@@ -174,16 +216,6 @@ export default function AuctionGuruScreen() {
         </View>
 
         <View style={commonStyles.card}>
-          <View style={styles.switchRow}>
-            <Text style={commonStyles.label}>First Home Buyer</Text>
-            <Switch
-              value={isFirstHomeBuyer}
-              onValueChange={setIsFirstHomeBuyer}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.card}
-            />
-          </View>
-
           <Text style={commonStyles.label}>Loan Pre-Approval Amount ($)</Text>
           <TextInput
             style={commonStyles.input}
@@ -416,6 +448,27 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 200,
   },
+  profileBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.highlight,
+    padding: 12,
+    borderRadius: 8,
+  },
+  profileInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  profileLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  profileValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
   bidCard: {
     backgroundColor: colors.primary,
     alignItems: 'center',
@@ -488,12 +541,6 @@ const styles = StyleSheet.create({
   },
   incrementOptionTextActive: {
     color: colors.primary,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
   sectionHeader: {
     flexDirection: 'row',

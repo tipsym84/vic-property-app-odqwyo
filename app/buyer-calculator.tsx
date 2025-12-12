@@ -1,55 +1,55 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/utils/stampDutyCalculations';
 
 export default function BuyerCalculatorScreen() {
   const router = useRouter();
   const [purchasePrice, setPurchasePrice] = useState('');
-  const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
-  const [hasConcessionCard, setHasConcessionCard] = useState(false);
   const [legalFees, setLegalFees] = useState('1500');
   const [mortgageAmount, setMortgageAmount] = useState('');
+  const [concessionAlertShown, setConcessionAlertShown] = useState(false);
+  
+  // User profile from AsyncStorage
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    isPrimaryResidence: true,
+    isFirstHomeBuyer: false,
+    isConcessionCardHolder: false,
+  });
 
-  const calculateLandTransferFee = (price: number): number => {
-    if (price <= 25000) return 110;
-    if (price <= 130000) return 110 + ((price - 25000) / 1000) * 2.46;
-    if (price <= 960000) return 368.30 + ((price - 130000) / 1000) * 5.06;
-    return 4568.10 + ((price - 960000) / 1000) * 5.06;
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const primaryResidence = await AsyncStorage.getItem('isPrimaryResidence');
+      const firstHomeBuyer = await AsyncStorage.getItem('isFirstHomeBuyer');
+      const concessionCard = await AsyncStorage.getItem('isConcessionCardHolder');
+      
+      setUserProfile({
+        isPrimaryResidence: primaryResidence === 'true',
+        isFirstHomeBuyer: firstHomeBuyer === 'true',
+        isConcessionCardHolder: concessionCard === 'true',
+      });
+    } catch (error) {
+      console.log('Error loading user profile:', error);
+    }
   };
 
-  const calculateStampDuty = (price: number, firstHome: boolean, concession: boolean): number => {
-    if (firstHome && price <= 600000) return 0;
-    
-    if (firstHome && price > 600000 && price <= 750000) {
-      const dutyFree = 600000;
-      const dutyableAmount = price - dutyFree;
-      return dutyableAmount * 0.05;
+  const showConcessionAlert = () => {
+    if (!concessionAlertShown) {
+      Alert.alert(
+        'Important Notice',
+        'This calculation applies to contracts signed on or after 1 July 2023. If your contract was signed before this date please seek legal advice.',
+        [{ text: 'OK' }]
+      );
+      setConcessionAlertShown(true);
     }
-    
-    let duty = 0;
-    if (price <= 25000) {
-      duty = price * 0.014;
-    } else if (price <= 130000) {
-      duty = 350 + (price - 25000) * 0.024;
-    } else if (price <= 960000) {
-      duty = 2870 + (price - 130000) * 0.06;
-    } else {
-      duty = 52670 + (price - 960000) * 0.055;
-    }
-
-    if (concession && !firstHome) {
-      duty *= 0.5;
-    }
-    
-    return duty;
-  };
-
-  const calculateMortgageRegistration = (amount: number): number => {
-    if (amount <= 0) return 0;
-    return 119.90;
   };
 
   const price = parseFloat(purchasePrice) || 0;
@@ -57,11 +57,26 @@ export default function BuyerCalculatorScreen() {
   const legal = parseFloat(legalFees) || 0;
 
   const landTransferFee = calculateLandTransferFee(price);
-  const stampDuty = calculateStampDuty(price, isFirstHomeBuyer, hasConcessionCard);
-  const mortgageReg = calculateMortgageRegistration(mortgage);
+  const stampDuty = calculateStampDuty(price, userProfile, showConcessionAlert);
+  const mortgageReg = mortgage > 0 ? 119.90 : 0;
   const caveatFee = 119.90;
 
   const totalCosts = landTransferFee + stampDuty + mortgageReg + caveatFee + legal;
+
+  const getStampDutyDescription = () => {
+    const { isPrimaryResidence, isFirstHomeBuyer, isConcessionCardHolder } = userProfile;
+    
+    if (!isPrimaryResidence) {
+      return 'Standard rates (Section 28)';
+    }
+    if (isFirstHomeBuyer) {
+      return 'First home buyer concession (Section 57JA)';
+    }
+    if (isConcessionCardHolder) {
+      return 'Concession card holder (Section 60)';
+    }
+    return 'Primary residence rates (Section 57J)';
+  };
 
   return (
     <View style={styles.container}>
@@ -84,6 +99,33 @@ export default function BuyerCalculatorScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={commonStyles.card}>
+          <View style={styles.profileBanner}>
+            <IconSymbol
+              ios_icon_name="person.circle"
+              android_material_icon_name="account-circle"
+              size={24}
+              color={colors.primary}
+            />
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileLabel}>Using your profile settings:</Text>
+              <Text style={styles.profileValue}>
+                {userProfile.isPrimaryResidence ? 'Primary Residence' : 'Not Primary Residence'}
+                {userProfile.isFirstHomeBuyer && ' • First Home Buyer'}
+                {userProfile.isConcessionCardHolder && ' • Concession Card'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+              <IconSymbol
+                ios_icon_name="pencil"
+                android_material_icon_name="edit"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={commonStyles.card}>
           <Text style={commonStyles.label}>Purchase Price ($)</Text>
           <TextInput
             style={commonStyles.input}
@@ -92,32 +134,6 @@ export default function BuyerCalculatorScreen() {
             value={purchasePrice}
             onChangeText={setPurchasePrice}
           />
-
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabelContainer}>
-              <Text style={commonStyles.label}>First Home Buyer</Text>
-              <Text style={styles.switchHint}>
-                {isFirstHomeBuyer && price <= 600000 && '(No stamp duty!)'}
-                {isFirstHomeBuyer && price > 600000 && price <= 750000 && '(Reduced stamp duty)'}
-              </Text>
-            </View>
-            <Switch
-              value={isFirstHomeBuyer}
-              onValueChange={setIsFirstHomeBuyer}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.card}
-            />
-          </View>
-
-          <View style={styles.switchRow}>
-            <Text style={commonStyles.label}>Concession Card Holder</Text>
-            <Switch
-              value={hasConcessionCard}
-              onValueChange={setHasConcessionCard}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.card}
-            />
-          </View>
 
           <Text style={commonStyles.label}>Mortgage Amount ($)</Text>
           <TextInput
@@ -147,7 +163,10 @@ export default function BuyerCalculatorScreen() {
           </View>
 
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Stamp Duty</Text>
+            <View style={styles.resultLabelContainer}>
+              <Text style={styles.resultLabel}>Stamp Duty</Text>
+              <Text style={styles.resultSubLabel}>{getStampDutyDescription()}</Text>
+            </View>
             <Text style={styles.resultValue}>${stampDuty.toFixed(2)}</Text>
           </View>
 
@@ -182,12 +201,37 @@ export default function BuyerCalculatorScreen() {
         </View>
 
         <View style={commonStyles.card}>
-          <Text style={commonStyles.subtitle}>First Home Buyer Benefits</Text>
-          <Text style={commonStyles.textSecondary}>
-            - Properties up to $600,000: No stamp duty{'\n'}
-            - Properties $600,001 to $750,000: Reduced stamp duty (5% on amount over $600k){'\n'}
-            - Properties over $750,000: Standard stamp duty rates apply
-          </Text>
+          <Text style={commonStyles.subtitle}>Stamp Duty Information</Text>
+          {userProfile.isFirstHomeBuyer && (
+            <Text style={commonStyles.textSecondary}>
+              First Home Buyer Concession (Section 57JA):{'\n'}
+              - Properties up to $600,000: No stamp duty{'\n'}
+              - Properties $600,001 to $750,000: Reduced stamp duty{'\n'}
+              - Properties over $750,000: Standard rates apply
+            </Text>
+          )}
+          {userProfile.isConcessionCardHolder && !userProfile.isFirstHomeBuyer && (
+            <Text style={commonStyles.textSecondary}>
+              Concession Card Holder (Section 60):{'\n'}
+              - Properties up to $600,000: No stamp duty{'\n'}
+              - Properties $600,001 to $750,000: Reduced stamp duty{'\n'}
+              - Properties over $750,000: Standard rates apply{'\n\n'}
+              Note: Applies to contracts signed on or after 1 July 2023
+            </Text>
+          )}
+          {!userProfile.isFirstHomeBuyer && !userProfile.isConcessionCardHolder && userProfile.isPrimaryResidence && (
+            <Text style={commonStyles.textSecondary}>
+              Primary Residence (Section 57J):{'\n'}
+              - Reduced rates apply for primary residences up to $550,000{'\n'}
+              - Standard rates apply for properties over $550,000
+            </Text>
+          )}
+          {!userProfile.isPrimaryResidence && (
+            <Text style={commonStyles.textSecondary}>
+              Standard Stamp Duty (Section 28):{'\n'}
+              - Standard rates apply for non-primary residences
+            </Text>
+          )}
         </View>
 
         <View style={commonStyles.card}>
@@ -237,19 +281,26 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 120,
   },
-  switchRow: {
+  profileBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 12,
+    backgroundColor: colors.highlight,
+    padding: 12,
+    borderRadius: 8,
   },
-  switchLabelContainer: {
+  profileInfo: {
     flex: 1,
+    marginLeft: 12,
   },
-  switchHint: {
+  profileLabel: {
     fontSize: 12,
-    color: colors.success,
-    marginTop: 2,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  profileValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
   resultsCard: {
     backgroundColor: colors.highlight,
@@ -266,9 +317,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
   },
+  resultLabelContainer: {
+    flex: 1,
+  },
   resultLabel: {
     fontSize: 16,
     color: colors.text,
+  },
+  resultSubLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   resultValue: {
     fontSize: 16,
