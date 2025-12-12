@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,17 +43,28 @@ export default function AuctionGuruScreen() {
     loadUserProfile();
   }, []);
 
+  // Use useFocusEffect to reload profile settings when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('AuctionGuru screen focused - reloading profile settings');
+      loadUserProfile();
+    }, [])
+  );
+
   const loadUserProfile = async () => {
     try {
       const primaryResidence = await AsyncStorage.getItem('isPrimaryResidence');
       const firstHomeBuyer = await AsyncStorage.getItem('isFirstHomeBuyer');
       const concessionCard = await AsyncStorage.getItem('isConcessionCardHolder');
       
-      setUserProfile({
+      const newProfile = {
         isPrimaryResidence: primaryResidence === 'true',
         isFirstHomeBuyer: firstHomeBuyer === 'true',
         isConcessionCardHolder: concessionCard === 'true',
-      });
+      };
+      
+      console.log('Loaded user profile:', newProfile);
+      setUserProfile(newProfile);
     } catch (error) {
       console.log('Error loading user profile:', error);
     }
