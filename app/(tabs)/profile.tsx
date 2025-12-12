@@ -19,7 +19,6 @@ export default function ProfileScreen() {
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   
-  // User profile toggles
   const [isPrimaryResidence, setIsPrimaryResidence] = useState(true);
   const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
   const [isConcessionCardHolder, setIsConcessionCardHolder] = useState(false);
@@ -60,33 +59,20 @@ export default function ProfileScreen() {
     }
   };
 
-  const saveUserProfile = async () => {
-    try {
-      await AsyncStorage.setItem('isPrimaryResidence', isPrimaryResidence.toString());
-      await AsyncStorage.setItem('isFirstHomeBuyer', isFirstHomeBuyer.toString());
-      await AsyncStorage.setItem('isConcessionCardHolder', isConcessionCardHolder.toString());
-      console.log('User profile saved successfully');
-    } catch (error) {
-      console.log('Error saving user profile:', error);
-    }
-  };
-
   const handlePrimaryResidenceToggle = async (value: boolean) => {
     setIsPrimaryResidence(value);
     if (!value) {
-      // If not primary residence, disable first home buyer and concession card
       setIsFirstHomeBuyer(false);
       setIsConcessionCardHolder(false);
+      await AsyncStorage.setItem('isFirstHomeBuyer', 'false');
+      await AsyncStorage.setItem('isConcessionCardHolder', 'false');
     }
     await AsyncStorage.setItem('isPrimaryResidence', value.toString());
-    await AsyncStorage.setItem('isFirstHomeBuyer', (!value ? false : isFirstHomeBuyer).toString());
-    await AsyncStorage.setItem('isConcessionCardHolder', (!value ? false : isConcessionCardHolder).toString());
   };
 
   const handleFirstHomeBuyerToggle = async (value: boolean) => {
     setIsFirstHomeBuyer(value);
     if (value) {
-      // If first home buyer, disable concession card
       setIsConcessionCardHolder(false);
       await AsyncStorage.setItem('isConcessionCardHolder', 'false');
     }
@@ -112,20 +98,14 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear all agent-related data
-              await AsyncStorage.removeItem('agentCode');
-              await AsyncStorage.removeItem('agentInfo');
-              await AsyncStorage.removeItem('agentName');
-              await AsyncStorage.removeItem('hasPaid');
+              await AsyncStorage.multiRemove(['agentCode', 'agentInfo', 'hasPaid']);
               
-              // Update state
               setAgentInfo(null);
               setIsUnlocked(false);
               
               console.log('Agent details cleared successfully');
               Alert.alert('Success', 'Agent details cleared. The app is now locked.');
               
-              // Navigate to home
               router.push('/(tabs)/(home)/');
             } catch (error) {
               console.log('Error clearing agent data:', error);
