@@ -196,6 +196,7 @@ export default function AuctionGuruScreen() {
               onBlur={handleBidBlur}
               keyboardType="numeric"
               selectTextOnFocus
+              textAlign="center"
             />
           </View>
           
@@ -561,6 +562,7 @@ const styles = StyleSheet.create({
   bidInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 12,
     borderWidth: 2,
@@ -568,6 +570,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginBottom: 24,
+    maxWidth: '85%',
+    alignSelf: 'center',
   },
   dollarSign: {
     fontSize: 48,
@@ -579,7 +583,8 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '800',
     color: '#ffffff',
-    flex: 1,
+    minWidth: 150,
+    maxWidth: 250,
     padding: 0,
     margin: 0,
   },
