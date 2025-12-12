@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Swi
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 interface AgentInfo {
   code: string;
@@ -16,12 +16,15 @@ interface AgentInfo {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   
   const [isPrimaryResidence, setIsPrimaryResidence] = useState(true);
   const [isFirstHomeBuyer, setIsFirstHomeBuyer] = useState(false);
   const [isConcessionCardHolder, setIsConcessionCardHolder] = useState(false);
+
+  const showBackButton = params.from === 'auction-guru';
 
   useEffect(() => {
     loadAgentInfo();
@@ -120,14 +123,31 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
+      {showBackButton && (
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <IconSymbol
+              ios_icon_name="chevron.left"
+              android_material_icon_name="arrow-back"
+              size={24}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      )}
+
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, showBackButton && styles.scrollContentWithHeader]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
+        {!showBackButton && (
+          <View style={styles.header}>
+            <Text style={styles.title}>Profile</Text>
+          </View>
+        )}
 
         {agentInfo && (
           <View style={[commonStyles.card, styles.agentCard]}>
@@ -300,12 +320,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 16,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingTop: 60,
     paddingBottom: 120,
+  },
+  scrollContentWithHeader: {
+    paddingTop: 16,
   },
   header: {
     paddingHorizontal: 16,

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,8 +15,12 @@ interface CostItem {
 
 export default function AuctionGuruScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [currentBid, setCurrentBid] = useState(500000);
+  const [currentBidText, setCurrentBidText] = useState('500000');
   const [bidIncrement, setBidIncrement] = useState(5000);
+  const [customIncrement, setCustomIncrement] = useState('1000');
+  const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
   const [loanPreApproval, setLoanPreApproval] = useState('');
   const [savings, setSavings] = useState('');
   const [viewMode, setViewMode] = useState<'total' | 'cash' | 'remaining'>('cash');
@@ -66,6 +70,28 @@ export default function AuctionGuruScreen() {
     }
   };
 
+  const handleBidTextChange = (text: string) => {
+    setCurrentBidText(text);
+    const numValue = parseFloat(text.replace(/[^0-9.]/g, ''));
+    if (!isNaN(numValue) && numValue >= 0) {
+      setCurrentBid(numValue);
+    }
+  };
+
+  const handleBidBlur = () => {
+    setCurrentBidText(currentBid.toString());
+  };
+
+  const handleCustomIncrementSubmit = () => {
+    const value = parseFloat(customIncrement);
+    if (!isNaN(value) && value > 0) {
+      setBidIncrement(value);
+      setShowCustomIncrementInput(false);
+    } else {
+      Alert.alert('Invalid Value', 'Please enter a valid increment amount.');
+    }
+  };
+
   const stampDuty = calculateStampDuty(currentBid, userProfile, showConcessionAlert);
   const landTransferFee = calculateLandTransferFee(currentBid);
   const mortgageReg = parseFloat(loanPreApproval) > 0 ? 119.90 : 0;
@@ -81,7 +107,9 @@ export default function AuctionGuruScreen() {
   const savingsRemaining = savingsAmount - cashNeeded;
 
   const adjustBid = (amount: number) => {
-    setCurrentBid(Math.max(0, currentBid + amount));
+    const newBid = Math.max(0, currentBid + amount);
+    setCurrentBid(newBid);
+    setCurrentBidText(newBid.toString());
   };
 
   const addCostItem = () => {
@@ -101,7 +129,14 @@ export default function AuctionGuruScreen() {
     }
   };
 
-  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
+  const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
+
+  const handleProfilePress = () => {
+    router.push({
+      pathname: '/(tabs)/profile',
+      params: { from: 'auction-guru' }
+    } as any);
+  };
 
   return (
     <View style={styles.container}>
@@ -139,7 +174,7 @@ export default function AuctionGuruScreen() {
                 {userProfile.isConcessionCardHolder && ' • Concession Card'}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+            <TouchableOpacity onPress={handleProfilePress}>
               <IconSymbol
                 ios_icon_name="pencil"
                 android_material_icon_name="edit"
@@ -152,7 +187,17 @@ export default function AuctionGuruScreen() {
 
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Bid</Text>
-          <Text style={styles.bidAmount}>${currentBid.toLocaleString()}</Text>
+          <View style={styles.bidInputContainer}>
+            <Text style={styles.dollarSign}>$</Text>
+            <TextInput
+              style={styles.bidInput}
+              value={currentBidText}
+              onChangeText={handleBidTextChange}
+              onBlur={handleBidBlur}
+              keyboardType="numeric"
+              selectTextOnFocus
+            />
+          </View>
           
           <View style={styles.bidControls}>
             <TouchableOpacity 
@@ -192,19 +237,35 @@ export default function AuctionGuruScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.incrementOptions}
             >
+              <TouchableOpacity
+                style={[
+                  styles.incrementOption,
+                  showCustomIncrementInput && styles.incrementOptionActive
+                ]}
+                onPress={() => setShowCustomIncrementInput(!showCustomIncrementInput)}
+              >
+                <Text style={[
+                  styles.incrementOptionText,
+                  showCustomIncrementInput && styles.incrementOptionTextActive
+                ]}>
+                  Custom
+                </Text>
+              </TouchableOpacity>
               {incrementOptions.map((option, index) => (
                 <React.Fragment key={index}>
                 <TouchableOpacity
-                  key={index}
                   style={[
                     styles.incrementOption,
-                    bidIncrement === option && styles.incrementOptionActive
+                    bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
                   ]}
-                  onPress={() => setBidIncrement(option)}
+                  onPress={() => {
+                    setBidIncrement(option);
+                    setShowCustomIncrementInput(false);
+                  }}
                 >
                   <Text style={[
                     styles.incrementOptionText,
-                    bidIncrement === option && styles.incrementOptionTextActive
+                    bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
                   ]}>
                     ${(option / 1000).toFixed(option < 1000 ? 0 : 0)}k
                   </Text>
@@ -213,6 +274,24 @@ export default function AuctionGuruScreen() {
               ))}
             </ScrollView>
           </View>
+
+          {showCustomIncrementInput && (
+            <View style={styles.customIncrementContainer}>
+              <TextInput
+                style={styles.customIncrementInput}
+                placeholder="Enter custom increment"
+                keyboardType="numeric"
+                value={customIncrement}
+                onChangeText={setCustomIncrement}
+              />
+              <TouchableOpacity 
+                style={styles.customIncrementButton}
+                onPress={handleCustomIncrementSubmit}
+              >
+                <Text style={styles.customIncrementButtonText}>Set</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <View style={commonStyles.card}>
@@ -333,7 +412,7 @@ export default function AuctionGuruScreen() {
 
           <View style={styles.resultRow}>
             <Text style={styles.totalLabel}>Total Amount Required</Text>
-            <Text style={styles.totalValue}>${totalRequired.toLocaleString()}</Text>
+            <Text style={styles.totalValue}>${totalRequired.toFixed(2)}</Text>
           </View>
 
           {loanAmount > 0 && (
@@ -382,15 +461,15 @@ export default function AuctionGuruScreen() {
           {viewMode === 'total' && (
             <>
               <Text style={styles.pinnedLabel}>Total Amount Required</Text>
-              <Text style={styles.pinnedValue}>${totalRequired.toLocaleString()}</Text>
+              <Text style={styles.pinnedValue}>${totalRequired.toFixed(2)}</Text>
             </>
           )}
           {viewMode === 'cash' && (
             <>
               <Text style={styles.pinnedLabel}>Cash Needed</Text>
-              <Text style={styles.pinnedValue}>${cashNeeded.toLocaleString()}</Text>
+              <Text style={styles.pinnedValue}>${cashNeeded.toFixed(2)}</Text>
               <Text style={styles.pinnedSubtext}>
-                (Total ${totalRequired.toLocaleString()} - Loan ${loanAmount.toLocaleString()})
+                (Total ${totalRequired.toFixed(2)} - Loan ${loanAmount.toFixed(2)})
               </Text>
             </>
           )}
@@ -401,10 +480,10 @@ export default function AuctionGuruScreen() {
                 styles.pinnedValue,
                 { color: savingsRemaining >= 0 ? colors.success : colors.secondary }
               ]}>
-                ${savingsRemaining.toLocaleString()}
+                ${savingsRemaining.toFixed(2)}
               </Text>
               <Text style={styles.pinnedSubtext}>
-                (Savings ${savingsAmount.toLocaleString()} - Cash Needed ${cashNeeded.toLocaleString()})
+                (Savings ${savingsAmount.toFixed(2)} - Cash Needed ${cashNeeded.toFixed(2)})
               </Text>
             </>
           )}
@@ -479,11 +558,30 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginBottom: 8,
   },
-  bidAmount: {
+  bidInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 24,
+  },
+  dollarSign: {
     fontSize: 48,
     fontWeight: '800',
     color: '#ffffff',
-    marginBottom: 24,
+    marginRight: 4,
+  },
+  bidInput: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#ffffff',
+    flex: 1,
+    padding: 0,
+    margin: 0,
   },
   bidControls: {
     flexDirection: 'row',
@@ -540,6 +638,32 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   incrementOptionTextActive: {
+    color: colors.primary,
+  },
+  customIncrementContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  customIncrementInput: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  customIncrementButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  customIncrementButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.primary,
   },
   sectionHeader: {
@@ -638,11 +762,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: colors.primary,
-    paddingVertical: 20,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     paddingBottom: 100,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.2,
@@ -656,7 +780,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ffffff',
     opacity: 0.9,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   pinnedValue: {
     fontSize: 36,

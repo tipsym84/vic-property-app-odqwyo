@@ -9,31 +9,35 @@ export interface UserProfile {
 
 // Section 28 of the Duties Act - Standard stamp duty calculation
 export const calculateSection28StampDuty = (dutiableValue: number): number => {
+  let duty = 0;
   if (dutiableValue <= 25000) {
-    return dutiableValue * 0.014;
+    duty = dutiableValue * 0.014;
   } else if (dutiableValue <= 130000) {
-    return 350 + (dutiableValue - 25000) * 0.024;
+    duty = 350 + (dutiableValue - 25000) * 0.024;
   } else if (dutiableValue <= 960000) {
-    return 2870 + (dutiableValue - 130000) * 0.06;
+    duty = 2870 + (dutiableValue - 130000) * 0.06;
   } else {
-    return 52670 + (dutiableValue - 960000) * 0.055;
+    duty = 52670 + (dutiableValue - 960000) * 0.055;
   }
+  return Math.floor(duty);
 };
 
 // Section 57J - Primary residence (not first home buyer, not concession)
 export const calculateSection57JStampDuty = (dutiableValue: number): number => {
+  let duty = 0;
   if (dutiableValue <= 25000) {
-    return dutiableValue * 0.014;
+    duty = dutiableValue * 0.014;
   } else if (dutiableValue <= 130000) {
-    return 350 + (dutiableValue - 25000) * 0.024;
+    duty = 350 + (dutiableValue - 25000) * 0.024;
   } else if (dutiableValue <= 440000) {
-    return 2870 + (dutiableValue - 130000) * 0.05;
+    duty = 2870 + (dutiableValue - 130000) * 0.05;
   } else if (dutiableValue <= 550000) {
-    return 18370 + (dutiableValue - 440000) * 0.06;
+    duty = 18370 + (dutiableValue - 440000) * 0.06;
   } else {
     // For values over $550,000, use standard Section 28 rates
     return calculateSection28StampDuty(dutiableValue);
   }
+  return Math.floor(duty);
 };
 
 // Section 57JA - First home buyer concession
@@ -43,7 +47,8 @@ export const calculateSection57JAStampDuty = (dutiableValue: number): number => 
   } else if (dutiableValue <= 750000) {
     const A = dutiableValue;
     const B = calculateSection28StampDuty(dutiableValue);
-    return ((A - 600000) / 150000) * B;
+    const duty = ((A - 600000) / 150000) * B;
+    return Math.floor(duty);
   } else {
     // For values over $750,000, use standard Section 28 rates
     return calculateSection28StampDuty(dutiableValue);
@@ -60,7 +65,8 @@ export const calculateSection60StampDuty = (dutiableValue: number, showAlert: ()
   } else if (dutiableValue <= 750000) {
     const A = dutiableValue;
     const B = calculateSection28StampDuty(dutiableValue);
-    return ((A - 600000) / 150000) * B;
+    const duty = ((A - 600000) / 150000) * B;
+    return Math.floor(duty);
   } else {
     // For values over $750,000, use standard Section 28 rates
     return calculateSection28StampDuty(dutiableValue);
