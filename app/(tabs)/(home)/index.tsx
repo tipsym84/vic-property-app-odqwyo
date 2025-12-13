@@ -215,7 +215,7 @@ export default function HomeScreen() {
 
         <TouchableOpacity 
           style={[commonStyles.card, styles.featureCard, !isUnlocked && styles.lockedCard]}
-          onPress={() => handleFeaturePress('/(tabs)/calculators')}
+          onPress={() => handleFeaturePress('/calculators')}
         >
           <View style={styles.featureIcon}>
             <IconSymbol 
@@ -241,7 +241,7 @@ export default function HomeScreen() {
 
         <TouchableOpacity 
           style={[commonStyles.card, styles.featureCard, !isUnlocked && styles.lockedCard]}
-          onPress={() => handleFeaturePress('/(tabs)/faq')}
+          onPress={() => handleFeaturePress('/faq')}
         >
           <View style={styles.featureIcon}>
             <IconSymbol 

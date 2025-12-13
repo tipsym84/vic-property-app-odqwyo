@@ -86,6 +86,7 @@ export default function FloatingTabBar({
   }, [activeTabIndex, animatedValue]);
 
   const handleTabPress = (route: Href) => {
+    console.log('FloatingTabBar: Navigating to', route);
     router.push(route);
   };
 
