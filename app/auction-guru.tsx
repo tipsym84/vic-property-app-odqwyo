@@ -13,6 +13,21 @@ interface CostItem {
   amount: string;
 }
 
+// Helper function to format monetary values with commas
+const formatMoney = (value: number): string => {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Helper function to calculate dynamic font size based on number of digits
+const getDynamicFontSize = (value: number): number => {
+  const digits = Math.floor(Math.log10(Math.abs(value))) + 1;
+  if (digits <= 5) return 48;
+  if (digits === 6) return 42;
+  if (digits === 7) return 36;
+  if (digits === 8) return 32;
+  return 28;
+};
+
 export default function AuctionGuruScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -174,7 +189,7 @@ export default function AuctionGuruScreen() {
             <IconSymbol
               ios_icon_name="person.circle"
               android_material_icon_name="account-circle"
-              size={24}
+              size={20}
               color={colors.primary}
             />
             <View style={styles.profileInfo}>
@@ -189,7 +204,7 @@ export default function AuctionGuruScreen() {
               <IconSymbol
                 ios_icon_name="pencil"
                 android_material_icon_name="edit"
-                size={20}
+                size={18}
                 color={colors.primary}
               />
             </TouchableOpacity>
@@ -199,9 +214,9 @@ export default function AuctionGuruScreen() {
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Bid</Text>
           <View style={styles.bidInputContainer}>
-            <Text style={styles.dollarSign}>$</Text>
+            <Text style={[styles.dollarSign, { fontSize: getDynamicFontSize(currentBid) }]}>$</Text>
             <TextInput
-              style={styles.bidInput}
+              style={[styles.bidInput, { fontSize: getDynamicFontSize(currentBid) }]}
               value={currentBidText}
               onChangeText={handleBidTextChange}
               onBlur={handleBidBlur}
@@ -219,14 +234,14 @@ export default function AuctionGuruScreen() {
               <IconSymbol
                 ios_icon_name="minus.circle.fill"
                 android_material_icon_name="remove-circle"
-                size={48}
+                size={44}
                 color="#ffffff"
               />
             </TouchableOpacity>
 
             <View style={styles.incrementContainer}>
               <Text style={styles.incrementLabel}>Increment</Text>
-              <Text style={styles.incrementValue}>${bidIncrement.toLocaleString()}</Text>
+              <Text style={styles.incrementValue}>${formatMoney(bidIncrement)}</Text>
             </View>
 
             <TouchableOpacity 
@@ -236,7 +251,7 @@ export default function AuctionGuruScreen() {
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
-                size={48}
+                size={44}
                 color="#ffffff"
               />
             </TouchableOpacity>
@@ -345,7 +360,7 @@ export default function AuctionGuruScreen() {
 
           {costItems.map((item, index) => (
             <React.Fragment key={index}>
-            <View key={item.id} style={styles.costItemRow}>
+            <View style={styles.costItemRow}>
               <TextInput
                 style={[commonStyles.input, styles.costNameInput]}
                 placeholder="Cost name"
@@ -360,12 +375,12 @@ export default function AuctionGuruScreen() {
                 onChangeText={(value) => updateCostItem(item.id, 'amount', value)}
               />
               {costItems.length > 1 && (
-                <TouchableOpacity onPress={() => removeCostItem(item.id)}>
+                <TouchableOpacity onPress={() => removeCostItem(item.id)} style={styles.deleteButton}>
                   <IconSymbol
-                    ios_icon_name="trash"
-                    android_material_icon_name="delete"
+                    ios_icon_name="minus.circle.fill"
+                    android_material_icon_name="remove-circle"
                     size={24}
-                    color={colors.secondary}
+                    color="#ff3b30"
                   />
                 </TouchableOpacity>
               )}
@@ -379,37 +394,37 @@ export default function AuctionGuruScreen() {
           
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Purchase Price</Text>
-            <Text style={styles.resultValue}>${currentBid.toLocaleString()}</Text>
+            <Text style={styles.resultValue}>${formatMoney(currentBid)}</Text>
           </View>
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Stamp Duty</Text>
-            <Text style={styles.resultValue}>${stampDuty.toFixed(2)}</Text>
+            <Text style={styles.resultValue}>${formatMoney(stampDuty)}</Text>
           </View>
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Land Transfer Fee</Text>
-            <Text style={styles.resultValue}>${landTransferFee.toFixed(2)}</Text>
+            <Text style={styles.resultValue}>${formatMoney(landTransferFee)}</Text>
           </View>
 
           {mortgageReg > 0 && (
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Mortgage Registration</Text>
-              <Text style={styles.resultValue}>${mortgageReg.toFixed(2)}</Text>
+              <Text style={styles.resultValue}>${formatMoney(mortgageReg)}</Text>
             </View>
           )}
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Caveat Lodgement</Text>
-            <Text style={styles.resultValue}>${caveatFee.toFixed(2)}</Text>
+            <Text style={styles.resultValue}>${formatMoney(caveatFee)}</Text>
           </View>
 
           {costItems.map((item, index) => (
             <React.Fragment key={index}>
             {item.name && parseFloat(item.amount) > 0 && (
-              <View key={item.id} style={styles.resultRow}>
+              <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>{item.name}</Text>
-                <Text style={styles.resultValue}>${parseFloat(item.amount).toFixed(2)}</Text>
+                <Text style={styles.resultValue}>${formatMoney(parseFloat(item.amount))}</Text>
               </View>
             )}
             </React.Fragment>
@@ -419,24 +434,57 @@ export default function AuctionGuruScreen() {
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Total Costs</Text>
-            <Text style={styles.resultValue}>${totalCosts.toFixed(2)}</Text>
+            <Text style={styles.resultValue}>${formatMoney(totalCosts)}</Text>
           </View>
 
           <View style={styles.resultRow}>
             <Text style={styles.totalLabel}>Total Amount Required</Text>
-            <Text style={styles.totalValue}>${totalRequired.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>${formatMoney(totalRequired)}</Text>
           </View>
 
           {loanAmount > 0 && (
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Less: Loan Pre-Approval</Text>
-              <Text style={[styles.resultValue, { color: colors.success }]}>-${loanAmount.toLocaleString()}</Text>
+              <Text style={[styles.resultValue, { color: colors.success }]}>-${formatMoney(loanAmount)}</Text>
             </View>
           )}
         </View>
 
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.subtitle}>View Mode</Text>
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+
+      <View style={styles.pinnedFooter}>
+        <View style={styles.pinnedContent}>
+          {viewMode === 'total' && (
+            <>
+              <Text style={styles.pinnedLabel}>Total Amount Required</Text>
+              <Text style={styles.pinnedValue}>${formatMoney(totalRequired)}</Text>
+            </>
+          )}
+          {viewMode === 'cash' && (
+            <>
+              <Text style={styles.pinnedLabel}>Cash Needed</Text>
+              <Text style={styles.pinnedValue}>${formatMoney(cashNeeded)}</Text>
+              <Text style={styles.pinnedSubtext}>
+                (Total ${formatMoney(totalRequired)} - Loan ${formatMoney(loanAmount)})
+              </Text>
+            </>
+          )}
+          {viewMode === 'remaining' && (
+            <>
+              <Text style={styles.pinnedLabel}>Savings Remaining</Text>
+              <Text style={[
+                styles.pinnedValue,
+                { color: savingsRemaining >= 0 ? '#ffffff' : '#ffcccc' }
+              ]}>
+                ${formatMoney(savingsRemaining)}
+              </Text>
+              <Text style={styles.pinnedSubtext}>
+                (Savings ${formatMoney(savingsAmount)} - Cash Needed ${formatMoney(cashNeeded)})
+              </Text>
+            </>
+          )}
+          
           <View style={styles.viewModeButtons}>
             <TouchableOpacity
               style={[styles.viewModeButton, viewMode === 'total' && styles.viewModeButtonActive]}
@@ -464,42 +512,6 @@ export default function AuctionGuruScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      <View style={styles.pinnedFooter}>
-        <View style={styles.pinnedContent}>
-          {viewMode === 'total' && (
-            <>
-              <Text style={styles.pinnedLabel}>Total Amount Required</Text>
-              <Text style={styles.pinnedValue}>${totalRequired.toFixed(2)}</Text>
-            </>
-          )}
-          {viewMode === 'cash' && (
-            <>
-              <Text style={styles.pinnedLabel}>Cash Needed</Text>
-              <Text style={styles.pinnedValue}>${cashNeeded.toFixed(2)}</Text>
-              <Text style={styles.pinnedSubtext}>
-                (Total ${totalRequired.toFixed(2)} - Loan ${loanAmount.toFixed(2)})
-              </Text>
-            </>
-          )}
-          {viewMode === 'remaining' && (
-            <>
-              <Text style={styles.pinnedLabel}>Savings Remaining</Text>
-              <Text style={[
-                styles.pinnedValue,
-                { color: savingsRemaining >= 0 ? colors.success : colors.secondary }
-              ]}>
-                ${savingsRemaining.toFixed(2)}
-              </Text>
-              <Text style={styles.pinnedSubtext}>
-                (Savings ${savingsAmount.toFixed(2)} - Cash Needed ${cashNeeded.toFixed(2)})
-              </Text>
-            </>
-          )}
-        </View>
       </View>
     </View>
   );
@@ -515,8 +527,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 8,
     backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -536,27 +548,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 16,
-    paddingBottom: 200,
+    paddingTop: 12,
+    paddingBottom: 220,
   },
   profileBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.highlight,
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
   },
   profileInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
   },
   profileLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     marginBottom: 2,
   },
   profileValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
   },
@@ -565,7 +577,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bidLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#ffffff',
     opacity: 0.9,
     marginBottom: 8,
@@ -578,24 +590,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 24,
-    maxWidth: '85%',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 20,
+    maxWidth: '80%',
     alignSelf: 'center',
   },
   dollarSign: {
-    fontSize: 48,
     fontWeight: '800',
     color: '#ffffff',
     marginRight: 4,
   },
   bidInput: {
-    fontSize: 48,
     fontWeight: '800',
     color: '#ffffff',
-    minWidth: 150,
-    maxWidth: 250,
+    minWidth: 120,
+    maxWidth: 220,
     padding: 0,
     margin: 0,
   },
@@ -603,22 +613,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 24,
+    width: '90%',
+    marginBottom: 20,
   },
   bidButton: {
-    padding: 8,
+    padding: 6,
   },
   incrementContainer: {
     alignItems: 'center',
   },
   incrementLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#ffffff',
     opacity: 0.9,
   },
   incrementValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#ffffff',
   },
@@ -627,10 +637,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   incrementSelectorLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#ffffff',
     opacity: 0.9,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   incrementOptions: {
     flexDirection: 'row',
@@ -638,7 +648,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   incrementOption: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -649,7 +659,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   incrementOptionText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#ffffff',
   },
@@ -704,73 +714,51 @@ const styles = StyleSheet.create({
   costAmountInput: {
     flex: 1,
     marginVertical: 0,
+    maxWidth: 120,
+  },
+  deleteButton: {
+    padding: 4,
   },
   resultsCard: {
     backgroundColor: colors.highlight,
   },
   resultsTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   resultRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   resultLabel: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
+    flex: 1,
   },
   resultValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
+    textAlign: 'right',
   },
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: 12,
+    marginVertical: 10,
   },
   totalLabel: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: colors.text,
   },
   totalValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.primary,
-  },
-  viewModeButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  viewModeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  viewModeButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  viewModeButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  viewModeButtonTextActive: {
-    color: '#ffffff',
   },
   pinnedFooter: {
     position: 'absolute',
@@ -778,9 +766,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: colors.primary,
-    paddingVertical: 12,
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingBottom: 100,
+    paddingBottom: 90,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     shadowColor: '#000',
@@ -793,21 +781,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pinnedLabel: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#ffffff',
     opacity: 0.9,
     marginBottom: 4,
   },
   pinnedValue: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: '800',
     color: '#ffffff',
   },
   pinnedSubtext: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#ffffff',
     opacity: 0.8,
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  viewModeButtons: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+    width: '100%',
+  },
+  viewModeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+  },
+  viewModeButtonActive: {
+    backgroundColor: '#ffffff',
+    borderColor: '#ffffff',
+  },
+  viewModeButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  viewModeButtonTextActive: {
+    color: colors.primary,
   },
   bottomPadding: {
     height: 20,
