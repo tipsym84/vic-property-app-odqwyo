@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -9,7 +9,8 @@ import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/uti
 
 interface CostItem {
   id: string;
-  name: string;
+  type: 'Legal Fees' | 'Building/Pest Inspection' | 'Council Rates' | 'Other';
+  customLabel: string;
   amount: string;
 }
 
@@ -26,6 +27,8 @@ const getDynamicFontSize = (value: number): number => {
   return 28;
 };
 
+const COST_OPTIONS = ['Legal Fees', 'Building/Pest Inspection', 'Council Rates', 'Other'] as const;
+
 export default function BuyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -40,10 +43,11 @@ export default function BuyScreen() {
   const [concessionAlertShown, setConcessionAlertShown] = useState(false);
   
   const [costItems, setCostItems] = useState<CostItem[]>([
-    { id: '1', name: 'Legal Fees', amount: '1500' },
-    { id: '2', name: 'Building Inspection', amount: '500' },
-    { id: '3', name: 'Pest Inspection', amount: '300' },
+    { id: '1', type: 'Legal Fees', customLabel: '', amount: '1500' },
   ]);
+
+  const [showDropdown, setShowDropdown] = useState<string | null>(null);
+  const [showCustomLabelInput, setShowCustomLabelInput] = useState<string | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile>({
     isPrimaryResidence: true,
@@ -102,6 +106,7 @@ export default function BuyScreen() {
 
   const handleBidBlur = () => {
     setCurrentBidText(currentBid.toString());
+    Keyboard.dismiss();
   };
 
   const handleCustomIncrementSubmit = () => {
@@ -136,19 +141,44 @@ export default function BuyScreen() {
 
   const addCostItem = () => {
     const newId = (costItems.length + 1).toString();
-    setCostItems([...costItems, { id: newId, name: '', amount: '' }]);
+    setCostItems([...costItems, { id: newId, type: 'Legal Fees', customLabel: '', amount: '' }]);
   };
 
-  const updateCostItem = (id: string, field: 'name' | 'amount', value: string) => {
+  const updateCostItemType = (id: string, type: typeof COST_OPTIONS[number]) => {
     setCostItems(costItems.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
+      item.id === id ? { ...item, type, customLabel: type === 'Other' ? item.customLabel : '' } : item
+    ));
+    setShowDropdown(null);
+    if (type === 'Other') {
+      setShowCustomLabelInput(id);
+    } else {
+      setShowCustomLabelInput(null);
+    }
+  };
+
+  const updateCostItemCustomLabel = (id: string, customLabel: string) => {
+    setCostItems(costItems.map(item => 
+      item.id === id ? { ...item, customLabel } : item
+    ));
+  };
+
+  const updateCostItemAmount = (id: string, amount: string) => {
+    setCostItems(costItems.map(item => 
+      item.id === id ? { ...item, amount } : item
     ));
   };
 
   const removeCostItem = (id: string) => {
-    if (costItems.length > 1) {
-      setCostItems(costItems.filter(item => item.id !== id));
+    setCostItems(costItems.filter(item => item.id !== id));
+    if (showDropdown === id) setShowDropdown(null);
+    if (showCustomLabelInput === id) setShowCustomLabelInput(null);
+  };
+
+  const getCostItemDisplayLabel = (item: CostItem): string => {
+    if (item.type === 'Other' && item.customLabel) {
+      return item.customLabel;
     }
+    return item.type;
   };
 
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
@@ -158,6 +188,10 @@ export default function BuyScreen() {
       pathname: '/(tabs)/profile',
       params: { from: 'buy' }
     } as any);
+  };
+
+  const handleScroll = () => {
+    Keyboard.dismiss();
   };
 
   return (
@@ -179,6 +213,9 @@ export default function BuyScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={commonStyles.card}>
           <View style={styles.profileBanner}>
@@ -186,7 +223,7 @@ export default function BuyScreen() {
               ios_icon_name="person.circle"
               android_material_icon_name="account-circle"
               size={20}
-              color={colors.primary}
+              color="#424242"
             />
             <View style={styles.profileInfo}>
               <Text style={styles.profileLabel}>Using your profile settings:</Text>
@@ -201,14 +238,14 @@ export default function BuyScreen() {
                 ios_icon_name="pencil"
                 android_material_icon_name="edit"
                 size={18}
-                color={colors.primary}
+                color="#424242"
               />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={[commonStyles.card, styles.bidCard]}>
-          <Text style={styles.bidLabel}>Current Bid</Text>
+          <Text style={styles.bidLabel}>Current Offer</Text>
           <View style={styles.bidInputContainer}>
             <Text style={[styles.dollarSign, { fontSize: getDynamicFontSize(currentBid) }]}>$</Text>
             <TextInput
@@ -231,7 +268,7 @@ export default function BuyScreen() {
                 ios_icon_name="minus.circle.fill"
                 android_material_icon_name="remove-circle"
                 size={44}
-                color="#ffffff"
+                color="#424242"
               />
             </TouchableOpacity>
 
@@ -248,13 +285,13 @@ export default function BuyScreen() {
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
                 size={44}
-                color="#ffffff"
+                color="#424242"
               />
             </TouchableOpacity>
           </View>
 
           <View style={styles.incrementSelector}>
-            <Text style={styles.incrementSelectorLabel}>Select Bid Increment:</Text>
+            <Text style={styles.incrementSelectorLabel}>Select Offer Increment:</Text>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -306,6 +343,7 @@ export default function BuyScreen() {
                 keyboardType="numeric"
                 value={customIncrement}
                 onChangeText={setCustomIncrement}
+                onBlur={() => Keyboard.dismiss()}
               />
               <TouchableOpacity 
                 style={styles.customIncrementButton}
@@ -325,6 +363,7 @@ export default function BuyScreen() {
             keyboardType="numeric"
             value={loanPreApproval}
             onChangeText={setLoanPreApproval}
+            onBlur={() => Keyboard.dismiss()}
           />
 
           {viewMode === 'remaining' && (
@@ -336,6 +375,7 @@ export default function BuyScreen() {
                 keyboardType="numeric"
                 value={savings}
                 onChangeText={setSavings}
+                onBlur={() => Keyboard.dismiss()}
               />
             </>
           )}
@@ -349,7 +389,7 @@ export default function BuyScreen() {
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
                 size={24}
-                color={colors.primary}
+                color="#424242"
               />
             </TouchableOpacity>
           </View>
@@ -357,30 +397,72 @@ export default function BuyScreen() {
           {costItems.map((item, index) => (
             <React.Fragment key={index}>
             <View style={styles.costItemRow}>
-              <TextInput
-                style={[commonStyles.input, styles.costNameInput]}
-                placeholder="Cost name"
-                value={item.name}
-                onChangeText={(value) => updateCostItem(item.id, 'name', value)}
-              />
+              <View style={styles.costTypeContainer}>
+                <TouchableOpacity 
+                  style={styles.dropdownButton}
+                  onPress={() => setShowDropdown(showDropdown === item.id ? null : item.id)}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {getCostItemDisplayLabel(item)}
+                  </Text>
+                  <IconSymbol
+                    ios_icon_name="chevron.down"
+                    android_material_icon_name="arrow-drop-down"
+                    size={20}
+                    color="#424242"
+                  />
+                </TouchableOpacity>
+                
+                {showDropdown === item.id && (
+                  <View style={styles.dropdownMenu}>
+                    {COST_OPTIONS.map((option, optIndex) => (
+                      <React.Fragment key={optIndex}>
+                      <TouchableOpacity
+                        style={styles.dropdownMenuItem}
+                        onPress={() => updateCostItemType(item.id, option)}
+                      >
+                        <Text style={styles.dropdownMenuItemText}>{option}</Text>
+                      </TouchableOpacity>
+                      </React.Fragment>
+                    ))}
+                  </View>
+                )}
+              </View>
+
               <TextInput
                 style={[commonStyles.input, styles.costAmountInput]}
                 placeholder="Amount"
                 keyboardType="numeric"
                 value={item.amount}
-                onChangeText={(value) => updateCostItem(item.id, 'amount', value)}
+                onChangeText={(value) => updateCostItemAmount(item.id, value)}
+                onBlur={() => Keyboard.dismiss()}
               />
-              {costItems.length > 1 && (
-                <TouchableOpacity onPress={() => removeCostItem(item.id)} style={styles.deleteButton}>
-                  <IconSymbol
-                    ios_icon_name="minus.circle.fill"
-                    android_material_icon_name="remove-circle"
-                    size={24}
-                    color="#ff3b30"
-                  />
-                </TouchableOpacity>
-              )}
+              
+              <TouchableOpacity onPress={() => removeCostItem(item.id)} style={styles.deleteButton}>
+                <IconSymbol
+                  ios_icon_name="minus.circle.fill"
+                  android_material_icon_name="remove-circle"
+                  size={24}
+                  color="#f44336"
+                />
+              </TouchableOpacity>
             </View>
+
+            {item.type === 'Other' && showCustomLabelInput === item.id && (
+              <View style={styles.customLabelContainer}>
+                <TextInput
+                  style={styles.customLabelInput}
+                  placeholder="Enter custom label for this cost"
+                  value={item.customLabel}
+                  onChangeText={(value) => updateCostItemCustomLabel(item.id, value)}
+                  onBlur={() => {
+                    Keyboard.dismiss();
+                    setShowCustomLabelInput(null);
+                  }}
+                  autoFocus
+                />
+              </View>
+            )}
             </React.Fragment>
           ))}
         </View>
@@ -415,16 +497,20 @@ export default function BuyScreen() {
             <Text style={styles.resultValue}>${formatMoney(caveatFee)}</Text>
           </View>
 
-          {costItems.map((item, index) => (
-            <React.Fragment key={index}>
-            {item.name && parseFloat(item.amount) > 0 && (
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>{item.name}</Text>
-                <Text style={styles.resultValue}>${formatMoney(parseFloat(item.amount))}</Text>
-              </View>
-            )}
-            </React.Fragment>
-          ))}
+          {costItems.map((item, index) => {
+            const displayLabel = getCostItemDisplayLabel(item);
+            const amount = parseFloat(item.amount);
+            return (
+              <React.Fragment key={index}>
+              {displayLabel && amount > 0 && (
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>{displayLabel}</Text>
+                  <Text style={styles.resultValue}>${formatMoney(amount)}</Text>
+                </View>
+              )}
+              </React.Fragment>
+            );
+          })}
 
           <View style={styles.divider} />
 
@@ -471,7 +557,7 @@ export default function BuyScreen() {
               <Text style={styles.pinnedLabel}>Savings Remaining</Text>
               <Text style={[
                 styles.pinnedValue,
-                { color: savingsRemaining >= 0 ? '#ffffff' : '#ffcccc' }
+                { color: savingsRemaining >= 0 ? '#424242' : '#f44336' }
               ]}>
                 ${formatMoney(savingsRemaining)}
               </Text>
@@ -546,12 +632,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 12,
-    paddingBottom: 220,
+    paddingBottom: 200,
   },
   profileBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.highlight,
+    backgroundColor: '#f5f5f5',
     padding: 10,
     borderRadius: 8,
   },
@@ -572,13 +658,12 @@ const styles = StyleSheet.create({
     fontFamily: 'CourierPrime_700Bold',
   },
   bidCard: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#e0e0e0',
     alignItems: 'center',
   },
   bidLabel: {
     fontSize: 14,
-    color: '#ffffff',
-    opacity: 0.9,
+    color: '#424242',
     marginBottom: 8,
     fontFamily: 'CourierPrime_400Regular',
   },
@@ -586,10 +671,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: '#9e9e9e',
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
@@ -598,13 +683,13 @@ const styles = StyleSheet.create({
   },
   dollarSign: {
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#424242',
     marginRight: 4,
     fontFamily: 'CourierPrime_700Bold',
   },
   bidInput: {
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#424242',
     minWidth: 120,
     maxWidth: 220,
     padding: 0,
@@ -626,14 +711,13 @@ const styles = StyleSheet.create({
   },
   incrementLabel: {
     fontSize: 13,
-    color: '#ffffff',
-    opacity: 0.9,
+    color: '#424242',
     fontFamily: 'CourierPrime_400Regular',
   },
   incrementValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#424242',
     fontFamily: 'CourierPrime_700Bold',
   },
   incrementSelector: {
@@ -642,8 +726,7 @@ const styles = StyleSheet.create({
   },
   incrementSelectorLabel: {
     fontSize: 13,
-    color: '#ffffff',
-    opacity: 0.9,
+    color: '#424242',
     marginBottom: 10,
     fontFamily: 'CourierPrime_400Regular',
   },
@@ -656,21 +739,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#9e9e9e',
     minWidth: 60,
     alignItems: 'center',
   },
   incrementOptionActive: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#424242',
+    borderColor: '#424242',
   },
   incrementOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#424242',
     fontFamily: 'CourierPrime_700Bold',
   },
   incrementOptionTextActive: {
-    color: colors.primary,
+    color: '#ffffff',
   },
   customIncrementContainer: {
     flexDirection: 'row',
@@ -686,10 +772,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: colors.text,
+    borderWidth: 1,
+    borderColor: '#9e9e9e',
     fontFamily: 'CourierPrime_400Regular',
   },
   customIncrementButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#424242',
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -697,7 +785,7 @@ const styles = StyleSheet.create({
   customIncrementButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primary,
+    color: '#ffffff',
     fontFamily: 'CourierPrime_700Bold',
   },
   sectionHeader: {
@@ -715,20 +803,76 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  costNameInput: {
+  costTypeContainer: {
     flex: 2,
-    marginVertical: 0,
+    position: 'relative',
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: 'CourierPrime_400Regular',
+    flex: 1,
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  dropdownMenuItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  dropdownMenuItemText: {
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: 'CourierPrime_400Regular',
   },
   costAmountInput: {
     flex: 1,
     marginVertical: 0,
-    maxWidth: 120,
+    maxWidth: 100,
   },
   deleteButton: {
     padding: 4,
   },
+  customLabelContainer: {
+    marginBottom: 12,
+    marginTop: -4,
+  },
+  customLabelInput: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: 'CourierPrime_400Regular',
+  },
   resultsCard: {
-    backgroundColor: colors.highlight,
+    backgroundColor: '#f5f5f5',
   },
   resultsTitle: {
     fontSize: 18,
@@ -770,7 +914,7 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: colors.primary,
+    color: '#424242',
     fontFamily: 'CourierPrime_700Bold',
   },
   pinnedFooter: {
@@ -778,10 +922,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.primary,
+    backgroundColor: '#e0e0e0',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    paddingBottom: 90,
+    paddingBottom: 80,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     shadowColor: '#000',
@@ -795,21 +939,19 @@ const styles = StyleSheet.create({
   },
   pinnedLabel: {
     fontSize: 13,
-    color: '#ffffff',
-    opacity: 0.9,
+    color: '#424242',
     marginBottom: 4,
     fontFamily: 'CourierPrime_400Regular',
   },
   pinnedValue: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#ffffff',
+    color: '#424242',
     fontFamily: 'CourierPrime_700Bold',
   },
   pinnedSubtext: {
     fontSize: 11,
-    color: '#ffffff',
-    opacity: 0.8,
+    color: '#616161',
     marginTop: 2,
     marginBottom: 10,
     fontFamily: 'CourierPrime_400Regular',
@@ -825,24 +967,24 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: '#9e9e9e',
     alignItems: 'center',
   },
   viewModeButtonActive: {
-    backgroundColor: '#ffffff',
-    borderColor: '#ffffff',
+    backgroundColor: '#424242',
+    borderColor: '#424242',
   },
   viewModeButtonText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#424242',
     textAlign: 'center',
     fontFamily: 'CourierPrime_700Bold',
   },
   viewModeButtonTextActive: {
-    color: colors.primary,
+    color: '#ffffff',
   },
   bottomPadding: {
     height: 20,

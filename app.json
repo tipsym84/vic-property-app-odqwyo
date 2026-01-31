@@ -1,8 +1,7 @@
-
 {
   "expo": {
-    "name": "VicPropertyGuru",
-    "slug": "VicPropertyGuru",
+    "name": "Vic Property",
+    "slug": "Vic Property",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/natively-dark.png",
@@ -37,7 +36,7 @@
       "expo-router",
       "expo-web-browser"
     ],
-    "scheme": "VicPropertyGuru",
+    "scheme": "Vic Property",
     "experiments": {
       "typedRoutes": true
     },

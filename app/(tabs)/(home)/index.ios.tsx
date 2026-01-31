@@ -28,12 +28,12 @@ export default function HomeScreen() {
           style={[commonStyles.card, styles.featureCard]}
           onPress={() => handleFeaturePress('/buy')}
         >
-          <View style={[styles.featureIcon, { backgroundColor: '#e3f2fd' }]}>
+          <View style={[styles.featureIcon, { backgroundColor: '#f5f5f5' }]}>
             <IconSymbol 
-              ios_icon_name="hammer" 
+              ios_icon_name="gavel" 
               android_material_icon_name="gavel" 
               size={32} 
-              color="#1976d2"
+              color="#424242"
             />
           </View>
           <View style={styles.featureContent}>
@@ -54,12 +54,12 @@ export default function HomeScreen() {
           style={[commonStyles.card, styles.featureCard]}
           onPress={() => handleFeaturePress('/sell')}
         >
-          <View style={[styles.featureIcon, { backgroundColor: '#e8f5e9' }]}>
+          <View style={[styles.featureIcon, { backgroundColor: '#f5f5f5' }]}>
             <IconSymbol 
               ios_icon_name="dollarsign.circle" 
               android_material_icon_name="attach-money" 
               size={32} 
-              color="#388e3c"
+              color="#424242"
             />
           </View>
           <View style={styles.featureContent}>
