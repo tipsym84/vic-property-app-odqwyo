@@ -12,22 +12,16 @@ export default function TabLayout() {
       label: 'Home',
     },
     {
-      name: 'calculators',
-      route: '/(tabs)/calculators',
-      icon: 'calculate',
-      label: 'Calculators',
+      name: 'buy',
+      route: '/buy',
+      icon: 'gavel',
+      label: 'Buy',
     },
     {
-      name: 'faq',
-      route: '/(tabs)/faq',
-      icon: 'help',
-      label: 'FAQ',
-    },
-    {
-      name: 'profile',
-      route: '/(tabs)/profile',
-      icon: 'person',
-      label: 'Profile',
+      name: 'sell',
+      route: '/sell',
+      icon: 'attach-money',
+      label: 'Sell',
     },
   ];
 
@@ -40,9 +34,6 @@ export default function TabLayout() {
         }}
       >
         <Stack.Screen name="(home)" />
-        <Stack.Screen name="calculators" />
-        <Stack.Screen name="faq" />
-        <Stack.Screen name="profile" />
       </Stack>
       <FloatingTabBar tabs={tabs} />
     </>

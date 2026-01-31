@@ -246,5 +246,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     marginTop: 2,
+    fontFamily: 'CourierPrime_700Bold',
   },
 });

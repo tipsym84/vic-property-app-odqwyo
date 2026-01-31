@@ -38,22 +38,26 @@ export const commonStyles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
+    fontFamily: 'CourierPrime_400Regular',
   },
   subtitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 8,
+    fontFamily: 'CourierPrime_700Bold',
   },
   text: {
     fontSize: 16,
     color: colors.text,
     lineHeight: 24,
+    fontFamily: 'CourierPrime_400Regular',
   },
   textSecondary: {
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+    fontFamily: 'CourierPrime_400Regular',
   },
   button: {
     backgroundColor: colors.primary,
@@ -66,6 +70,7 @@ export const commonStyles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'CourierPrime_700Bold',
   },
   input: {
     backgroundColor: colors.card,
@@ -76,12 +81,14 @@ export const commonStyles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     marginVertical: 8,
+    fontFamily: 'CourierPrime_400Regular',
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
+    fontFamily: 'CourierPrime_700Bold',
   },
   divider: {
     height: 1,

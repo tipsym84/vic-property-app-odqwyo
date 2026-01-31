@@ -1,8 +1,8 @@
 
 import "react-native-reanimated";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack, router, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,7 +16,13 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  useFonts as useGoogleFonts,
+  CourierPrime_400Regular,
+  CourierPrime_400Regular_Italic,
+  CourierPrime_700Bold,
+  CourierPrime_700Bold_Italic,
+} from '@expo-google-fonts/courier-prime';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,38 +33,23 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
-  const segments = useSegments();
+  
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const [isUnlocked, setIsUnlocked] = useState<boolean | null>(null);
+
+  const [fontsLoaded] = useGoogleFonts({
+    CourierPrime_400Regular,
+    CourierPrime_400Regular_Italic,
+    CourierPrime_700Bold,
+    CourierPrime_700Bold_Italic,
+  });
 
   useEffect(() => {
-    if (loaded) {
+    if (loaded && fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
-
-  useEffect(() => {
-    checkAppLock();
-  }, []);
-
-  const checkAppLock = async () => {
-    try {
-      const agentInfo = await AsyncStorage.getItem('agentInfo');
-      const hasPaid = await AsyncStorage.getItem('hasPaid');
-      setIsUnlocked(!!(agentInfo || hasPaid));
-    } catch (error) {
-      console.log('Error checking app lock:', error);
-      setIsUnlocked(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isUnlocked === false && segments[0] !== '(tabs)') {
-      router.replace('/(tabs)/(home)/');
-    }
-  }, [isUnlocked, segments]);
+  }, [loaded, fontsLoaded]);
 
   React.useEffect(() => {
     if (
@@ -72,7 +63,7 @@ export default function RootLayout() {
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
 
-  if (!loaded || isUnlocked === null) {
+  if (!loaded || !fontsLoaded) {
     return null;
   }
 
@@ -112,7 +103,14 @@ export default function RootLayout() {
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen
-                name="auction-guru"
+                name="buy"
+                options={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                }}
+              />
+              <Stack.Screen
+                name="sell"
                 options={{
                   headerShown: false,
                   animation: 'slide_from_right',
@@ -127,13 +125,6 @@ export default function RootLayout() {
               />
               <Stack.Screen
                 name="max-purchase-calculator"
-                options={{
-                  headerShown: false,
-                  animation: 'slide_from_right',
-                }}
-              />
-              <Stack.Screen
-                name="vendor-calculator"
                 options={{
                   headerShown: false,
                   animation: 'slide_from_right',
