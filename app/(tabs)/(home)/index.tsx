@@ -22,6 +22,7 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.appName}>VicPropertyGuru</Text>
+          <Text style={styles.subheading}>Get the figures that matter for your……</Text>
         </View>
 
         <TouchableOpacity 
@@ -37,10 +38,7 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.featureContent}>
-            <Text style={styles.featureTitle}>Buy</Text>
-            <Text style={styles.featureDescription}>
-              Real-time bidding calculator to see your true costs
-            </Text>
+            <Text style={styles.featureTitle}>Purchase</Text>
           </View>
           <IconSymbol 
             ios_icon_name="chevron.right" 
@@ -63,10 +61,7 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.featureContent}>
-            <Text style={styles.featureTitle}>Sell</Text>
-            <Text style={styles.featureDescription}>
-              Calculate your net proceeds from selling your property
-            </Text>
+            <Text style={styles.featureTitle}>Sale</Text>
           </View>
           <IconSymbol 
             ios_icon_name="chevron.right" 
@@ -105,6 +100,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontFamily: 'CourierPrime_700Bold',
   },
+  subheading: {
+    fontSize: 18,
+    color: colors.textSecondary,
+    fontFamily: 'CourierPrime_400Regular',
+  },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -121,17 +121,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   featureTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
     fontFamily: 'CourierPrime_700Bold',
-  },
-  featureDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    fontFamily: 'CourierPrime_400Regular',
   },
   bottomPadding: {
     height: 20,
