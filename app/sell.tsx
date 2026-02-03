@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
+import { useProperty } from '@/contexts/PropertyContext';
 
 interface CommissionTier {
   id: string;
@@ -12,12 +13,27 @@ interface CommissionTier {
   rate: string;
 }
 
+interface DebtItem {
+  id: string;
+  amount: string;
+}
+
 export default function SellScreen() {
   const router = useRouter();
+  const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
+  
+  const [mortgageToBeRepaid, setMortgageToBeRepaid] = useState(false);
+  const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
+  const [useSaleFunds, setUseSaleFunds] = useState(false);
+  
   const [salePrice, setSalePrice] = useState('');
   const [advertisingCosts, setAdvertisingCosts] = useState('2000');
   const [legalFees, setLegalFees] = useState('1200');
-  const [mortgageBalance, setMortgageBalance] = useState('');
+  
+  const [debtItems, setDebtItems] = useState<DebtItem[]>([
+    { id: '1', amount: '' }
+  ]);
+  const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
   
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([
     { id: '1', fromPrice: '0', toPrice: '500000', rate: '2.5' },
@@ -51,11 +67,32 @@ export default function SellScreen() {
   const commission = calculateCommission(price);
   const advertising = parseFloat(advertisingCosts) || 0;
   const legal = parseFloat(legalFees) || 0;
-  const mortgage = parseFloat(mortgageBalance) || 0;
-  const dischargeFee = mortgage > 0 ? 350 : 0;
+  
+  const totalDebt = debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  
+  let debtToDeduct = 0;
+  if (mortgageToBeRepaid) {
+    if (mortgageRepaidInFull) {
+      debtToDeduct = totalDebt;
+    } else {
+      debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
+    }
+  }
+  
+  const dischargeFee = mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0;
 
   const totalCosts = commission + advertising + legal + dischargeFee;
-  const netProceeds = price - totalCosts - mortgage;
+  const netProceedsValue = price - totalCosts - debtToDeduct;
+
+  useEffect(() => {
+    console.log('Sell screen: Net proceeds updated to', netProceedsValue);
+    setNetProceeds(netProceedsValue);
+  }, [netProceedsValue]);
+
+  useEffect(() => {
+    console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
+    setUseSaleFundsForPurchase(useSaleFunds);
+  }, [useSaleFunds]);
 
   const addCommissionTier = () => {
     const newId = (commissionTiers.length + 1).toString();
@@ -77,6 +114,23 @@ export default function SellScreen() {
   const removeCommissionTier = (id: string) => {
     if (commissionTiers.length > 1) {
       setCommissionTiers(commissionTiers.filter(tier => tier.id !== id));
+    }
+  };
+
+  const addDebtItem = () => {
+    const newId = (debtItems.length + 1).toString();
+    setDebtItems([...debtItems, { id: newId, amount: '' }]);
+  };
+
+  const updateDebtItem = (id: string, amount: string) => {
+    setDebtItems(debtItems.map(item => 
+      item.id === id ? { ...item, amount } : item
+    ));
+  };
+
+  const removeDebtItem = (id: string) => {
+    if (debtItems.length > 1) {
+      setDebtItems(debtItems.filter(item => item.id !== id));
     }
   };
 
@@ -105,14 +159,55 @@ export default function SellScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={commonStyles.card}>
-          <Text style={commonStyles.label}>Sale Price ($)</Text>
-          <TextInput
-            style={commonStyles.input}
-            placeholder="Enter sale price"
-            keyboardType="numeric"
-            value={salePrice}
-            onChangeText={setSalePrice}
-          />
+          <View style={styles.toggleSection}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
+              <Switch
+                value={mortgageToBeRepaid}
+                onValueChange={setMortgageToBeRepaid}
+                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
+              />
+            </View>
+            
+            {mortgageToBeRepaid && (
+              <>
+                <View style={styles.toggleRow}>
+                  <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
+                  <Switch
+                    value={mortgageRepaidInFull}
+                    onValueChange={setMortgageRepaidInFull}
+                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                    thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
+                  />
+                </View>
+
+                <View style={styles.toggleRow}>
+                  <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
+                  <Switch
+                    value={useSaleFunds}
+                    onValueChange={setUseSaleFunds}
+                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                    thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
+                  />
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.label}>Sale Price</Text>
+          <View style={styles.inputWithPrefix}>
+            <Text style={styles.inputPrefix}>$</Text>
+            <TextInput
+              style={[commonStyles.input, styles.inputWithPrefixField]}
+              placeholder="Enter sale price"
+              keyboardType="numeric"
+              value={salePrice}
+              onChangeText={setSalePrice}
+            />
+          </View>
         </View>
 
         <View style={commonStyles.card}>
@@ -185,32 +280,84 @@ export default function SellScreen() {
         </View>
 
         <View style={commonStyles.card}>
-          <Text style={commonStyles.label}>Advertising Costs ($)</Text>
-          <TextInput
-            style={commonStyles.input}
-            placeholder="Enter advertising costs"
-            keyboardType="numeric"
-            value={advertisingCosts}
-            onChangeText={setAdvertisingCosts}
-          />
+          <Text style={commonStyles.label}>Advertising Costs</Text>
+          <View style={styles.inputWithPrefix}>
+            <Text style={styles.inputPrefix}>$</Text>
+            <TextInput
+              style={[commonStyles.input, styles.inputWithPrefixField]}
+              placeholder="Enter advertising costs"
+              keyboardType="numeric"
+              value={advertisingCosts}
+              onChangeText={setAdvertisingCosts}
+            />
+          </View>
 
-          <Text style={commonStyles.label}>Legal Fees ($)</Text>
-          <TextInput
-            style={commonStyles.input}
-            placeholder="Enter legal fees"
-            keyboardType="numeric"
-            value={legalFees}
-            onChangeText={setLegalFees}
-          />
+          <Text style={commonStyles.label}>Legal Fees</Text>
+          <View style={styles.inputWithPrefix}>
+            <Text style={styles.inputPrefix}>$</Text>
+            <TextInput
+              style={[commonStyles.input, styles.inputWithPrefixField]}
+              placeholder="Enter legal fees"
+              keyboardType="numeric"
+              value={legalFees}
+              onChangeText={setLegalFees}
+            />
+          </View>
 
-          <Text style={commonStyles.label}>Mortgage Balance ($)</Text>
-          <TextInput
-            style={commonStyles.input}
-            placeholder="Enter mortgage balance (optional)"
-            keyboardType="numeric"
-            value={mortgageBalance}
-            onChangeText={setMortgageBalance}
-          />
+          <View style={styles.sectionHeader}>
+            <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
+            <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {debtItems.map((item, index) => (
+            <React.Fragment key={index}>
+            <View style={styles.debtItemRow}>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>$</Text>
+                <TextInput
+                  style={[commonStyles.input, styles.inputWithPrefixField]}
+                  placeholder={`Debt ${index + 1}`}
+                  keyboardType="numeric"
+                  value={item.amount}
+                  onChangeText={(value) => updateDebtItem(item.id, value)}
+                />
+              </View>
+              {debtItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.deleteButton}>
+                  <IconSymbol
+                    ios_icon_name="minus.circle.fill"
+                    android_material_icon_name="remove-circle"
+                    size={24}
+                    color="#f44336"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+            </React.Fragment>
+          ))}
+
+          {mortgageToBeRepaid && !mortgageRepaidInFull && (
+            <>
+              <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>$</Text>
+                <TextInput
+                  style={[commonStyles.input, styles.inputWithPrefixField]}
+                  placeholder="Enter partial repayment amount"
+                  keyboardType="numeric"
+                  value={partialRepaymentAmount}
+                  onChangeText={setPartialRepaymentAmount}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         <View style={[commonStyles.card, styles.resultsCard]}>
@@ -238,19 +385,35 @@ export default function SellScreen() {
             <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
           </View>
 
-          {mortgage > 0 && (
-            <>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-                <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
-              </View>
-
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Mortgage Balance</Text>
-                <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(mortgage)}</Text>
-              </View>
-            </>
+          {dischargeFee > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
+            </View>
           )}
+
+          {mortgageToBeRepaid && debtItems.map((item, index) => {
+            const debtAmount = parseFloat(item.amount) || 0;
+            const labelText = `Mortgage/Debt ${index + 1}`;
+            
+            let displayAmount = 0;
+            if (mortgageRepaidInFull) {
+              displayAmount = debtAmount;
+            } else if (index === 0) {
+              displayAmount = parseFloat(partialRepaymentAmount) || 0;
+            }
+            
+            return (
+              <React.Fragment key={index}>
+              {displayAmount > 0 && (
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>{labelText}</Text>
+                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
+                </View>
+              )}
+              </React.Fragment>
+            );
+          })}
 
           <View style={styles.divider} />
 
@@ -261,7 +424,7 @@ export default function SellScreen() {
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Net Proceeds</Text>
-            <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceeds)}</Text>
+            <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
           </View>
         </View>
 
@@ -313,6 +476,23 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 120,
   },
+  toggleSection: {
+    gap: 12,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'CourierPrime_700Bold',
+    flex: 1,
+    marginRight: 12,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -320,6 +500,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addButton: {
+    padding: 4,
+  },
+  inputWithPrefix: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    marginVertical: 8,
+  },
+  inputPrefix: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    paddingLeft: 12,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  inputWithPrefixField: {
+    flex: 1,
+    borderWidth: 0,
+    marginVertical: 0,
+  },
+  debtItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  deleteButton: {
     padding: 4,
   },
   tierContainer: {

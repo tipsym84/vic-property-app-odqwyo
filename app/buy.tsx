@@ -6,17 +6,23 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/utils/stampDutyCalculations';
+import { useProperty } from '@/contexts/PropertyContext';
 
 interface CostItem {
   id: string;
-  type: 'Legal Fees' | 'Building/Pest Inspection' | 'Council Rates' | 'Other';
+  type: string;
   customLabel: string;
   amount: string;
 }
 
 interface LoanItem {
   id: string;
-  label: string;
+  name: string;
+  amount: string;
+}
+
+interface SavingsItem {
+  id: string;
   amount: string;
 }
 
@@ -33,30 +39,45 @@ const getDynamicFontSize = (value: number): number => {
   return 28;
 };
 
-const COST_OPTIONS = ['Legal Fees', 'Building/Pest Inspection', 'Council Rates', 'Other'] as const;
+const ALL_COST_OPTIONS = [
+  'Legal Fees',
+  'Building/Pest Inspection',
+  'Council Rates',
+  'Owners Corporation',
+  'Lenders Mortgage Insurance (LMI)',
+  'Insurance',
+  'Removalist',
+  'Other'
+];
 
 export default function BuyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { netProceeds, useSaleFundsForPurchase } = useProperty();
+  
   const [currentBid, setCurrentBid] = useState(500000);
   const [currentBidText, setCurrentBidText] = useState('500,000');
   const [bidIncrement, setBidIncrement] = useState(5000);
   const [customIncrement, setCustomIncrement] = useState('1000');
   const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
   
-  const [loanItems, setLoanItems] = useState<LoanItem[]>([
-    { id: '1', label: 'Loan 1', amount: '' }
+  const [loans, setLoans] = useState<LoanItem[]>([
+    { id: '1', name: 'Loan 1', amount: '' }
   ]);
   const [selectedLoanId, setSelectedLoanId] = useState('1');
-  const [showLoanDropdown, setShowLoanDropdown] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
+  const [tempLoanName, setTempLoanName] = useState('');
+  const [tempLoanAmount, setTempLoanAmount] = useState('');
   
-  const [savings, setSavings] = useState('');
+  const [savingsItems, setSavingsItems] = useState<SavingsItem[]>([
+    { id: '1', amount: '' }
+  ]);
+  
   const [viewMode, setViewMode] = useState<'total' | 'cash' | 'remaining'>('cash');
   const [concessionAlertShown, setConcessionAlertShown] = useState(false);
   
-  const [costItems, setCostItems] = useState<CostItem[]>([
-    { id: '1', type: 'Legal Fees', customLabel: '', amount: '1500' },
-  ]);
+  const [costItems, setCostItems] = useState<CostItem[]>([]);
 
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
   const [showCustomLabelInput, setShowCustomLabelInput] = useState<string | null>(null);
@@ -184,7 +205,7 @@ export default function BuyScreen() {
     }
   };
 
-  const selectedLoan = loanItems.find(item => item.id === selectedLoanId);
+  const selectedLoan = loans.find(item => item.id === selectedLoanId);
   const currentLoanAmount = selectedLoan ? selectedLoan.amount : '';
 
   const stampDuty = calculateStampDuty(currentBid, userProfile, showConcessionAlert);
@@ -197,8 +218,10 @@ export default function BuyScreen() {
   const totalRequired = currentBid + totalCosts;
   
   const cashNeeded = totalRequired - loanAmount;
-  const savingsAmount = parseFloat(savings) || 0;
-  const savingsRemaining = savingsAmount - cashNeeded;
+  const totalSavings = savingsItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const balanceOfSaleFunds = useSaleFundsForPurchase ? netProceeds : 0;
+  const totalAvailableFunds = totalSavings + balanceOfSaleFunds;
+  const savingsRemaining = totalAvailableFunds - cashNeeded;
 
   const adjustBid = (amount: number) => {
     const newBid = Math.max(0, currentBid + amount);
@@ -207,12 +230,26 @@ export default function BuyScreen() {
     setCurrentBidText(formatted);
   };
 
-  const addCostItem = () => {
-    const newId = (costItems.length + 1).toString();
-    setCostItems([...costItems, { id: newId, type: 'Legal Fees', customLabel: '', amount: '' }]);
+  const getAvailableCostOptions = () => {
+    const usedOptions = costItems
+      .map(item => item.type)
+      .filter(type => type !== 'Other');
+    
+    return ALL_COST_OPTIONS.filter(option => 
+      option === 'Other' || !usedOptions.includes(option)
+    );
   };
 
-  const updateCostItemType = (id: string, type: typeof COST_OPTIONS[number]) => {
+  const addCostItem = () => {
+    const availableOptions = getAvailableCostOptions();
+    if (availableOptions.length > 0) {
+      const newId = (costItems.length + 1).toString();
+      const defaultType = availableOptions[0];
+      setCostItems([...costItems, { id: newId, type: defaultType, customLabel: '', amount: '' }]);
+    }
+  };
+
+  const updateCostItemType = (id: string, type: string) => {
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, type, customLabel: type === 'Other' ? item.customLabel : '' } : item
     ));
@@ -249,30 +286,65 @@ export default function BuyScreen() {
     return item.type;
   };
 
-  const addLoanItem = () => {
-    const newId = (loanItems.length + 1).toString();
-    const newLabel = `Loan ${loanItems.length + 1}`;
-    setLoanItems([...loanItems, { id: newId, label: newLabel, amount: '' }]);
+  const openLoanModal = (loanId: string | null = null) => {
+    if (loanId) {
+      const loan = loans.find(l => l.id === loanId);
+      if (loan) {
+        setEditingLoanId(loanId);
+        setTempLoanName(loan.name);
+        setTempLoanAmount(loan.amount);
+      }
+    } else {
+      const newId = (loans.length + 1).toString();
+      setEditingLoanId(newId);
+      setTempLoanName(`Loan ${loans.length + 1}`);
+      setTempLoanAmount('');
+    }
+    setShowLoanModal(true);
   };
 
-  const updateLoanLabel = (id: string, label: string) => {
-    setLoanItems(loanItems.map(item => 
-      item.id === id ? { ...item, label } : item
-    ));
+  const saveLoan = () => {
+    if (!editingLoanId) return;
+    
+    const existingLoan = loans.find(l => l.id === editingLoanId);
+    if (existingLoan) {
+      setLoans(loans.map(l => 
+        l.id === editingLoanId ? { ...l, name: tempLoanName, amount: tempLoanAmount } : l
+      ));
+    } else {
+      setLoans([...loans, { id: editingLoanId, name: tempLoanName, amount: tempLoanAmount }]);
+      setSelectedLoanId(editingLoanId);
+    }
+    
+    setShowLoanModal(false);
+    setEditingLoanId(null);
+    setTempLoanName('');
+    setTempLoanAmount('');
   };
 
-  const updateLoanAmount = (id: string, amount: string) => {
-    setLoanItems(loanItems.map(item => 
+  const removeLoan = (id: string) => {
+    if (loans.length > 1) {
+      setLoans(loans.filter(item => item.id !== id));
+      if (selectedLoanId === id) {
+        setSelectedLoanId(loans[0].id);
+      }
+    }
+  };
+
+  const addSavingsItem = () => {
+    const newId = (savingsItems.length + 1).toString();
+    setSavingsItems([...savingsItems, { id: newId, amount: '' }]);
+  };
+
+  const updateSavingsItem = (id: string, amount: string) => {
+    setSavingsItems(savingsItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
   };
 
-  const removeLoanItem = (id: string) => {
-    if (loanItems.length > 1) {
-      setLoanItems(loanItems.filter(item => item.id !== id));
-      if (selectedLoanId === id) {
-        setSelectedLoanId(loanItems[0].id);
-      }
+  const removeSavingsItem = (id: string) => {
+    if (savingsItems.length > 1) {
+      setSavingsItems(savingsItems.filter(item => item.id !== id));
     }
   };
 
@@ -465,7 +537,7 @@ export default function BuyScreen() {
         <View style={commonStyles.card}>
           <View style={styles.sectionHeader}>
             <Text style={commonStyles.label}>Loan Pre-Approval Amount</Text>
-            <TouchableOpacity onPress={addLoanItem} style={styles.addButton}>
+            <TouchableOpacity onPress={() => openLoanModal(null)} style={styles.addButton}>
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
@@ -475,22 +547,94 @@ export default function BuyScreen() {
             </TouchableOpacity>
           </View>
 
-          {loanItems.map((loan, index) => (
-            <React.Fragment key={index}>
-            <View style={styles.loanItemRow}>
+          <View style={styles.loanDisplayRow}>
+            <View style={styles.inputWithPrefix}>
+              <Text style={styles.inputPrefix}>$</Text>
               <TextInput
-                style={[commonStyles.input, styles.loanLabelInput]}
-                placeholder="Loan label"
-                value={loan.label}
-                onChangeText={(text) => updateLoanLabel(loan.id, text)}
-                onBlur={() => Keyboard.dismiss()}
+                style={[commonStyles.input, styles.inputWithPrefixField]}
+                placeholder="Tap to add loan"
+                keyboardType="numeric"
+                value={currentLoanAmount}
+                onFocus={() => {
+                  Keyboard.dismiss();
+                  openLoanModal(selectedLoanId);
+                }}
               />
-              {loanItems.length > 1 && (
-                <TouchableOpacity onPress={() => removeLoanItem(loan.id)} style={styles.deleteButton}>
+            </View>
+            {selectedLoan && (
+              <TouchableOpacity onPress={() => openLoanModal(selectedLoanId)} style={styles.editButton}>
+                <IconSymbol
+                  ios_icon_name="pencil"
+                  android_material_icon_name="edit"
+                  size={20}
+                  color="#424242"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {loans.length > 1 && (
+            <View style={styles.loanSelectorContainer}>
+              <Text style={styles.loanSelectorLabel}>Select Loan Scenario:</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.loanOptions}
+              >
+                {loans.map((loan, index) => (
+                  <React.Fragment key={index}>
+                  <TouchableOpacity
+                    style={[
+                      styles.loanOption,
+                      selectedLoanId === loan.id && styles.loanOptionActive
+                    ]}
+                    onPress={() => setSelectedLoanId(loan.id)}
+                  >
+                    <Text style={[
+                      styles.loanOptionText,
+                      selectedLoanId === loan.id && styles.loanOptionTextActive
+                    ]}>
+                      {loan.name}
+                    </Text>
+                  </TouchableOpacity>
+                  </React.Fragment>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          <View style={styles.sectionHeader}>
+            <Text style={[commonStyles.label, { marginTop: 12 }]}>Your Savings/Other Funds</Text>
+            <TouchableOpacity onPress={addSavingsItem} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={20}
+                color="#424242"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {savingsItems.map((item, index) => (
+            <React.Fragment key={index}>
+            <View style={styles.savingsItemRow}>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>$</Text>
+                <TextInput
+                  style={[commonStyles.input, styles.inputWithPrefixField]}
+                  placeholder={`Savings ${index + 1}`}
+                  keyboardType="numeric"
+                  value={item.amount}
+                  onChangeText={(value) => updateSavingsItem(item.id, value)}
+                  onBlur={() => Keyboard.dismiss()}
+                />
+              </View>
+              {savingsItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeSavingsItem(item.id)} style={styles.deleteButton}>
                   <IconSymbol
                     ios_icon_name="minus.circle.fill"
                     android_material_icon_name="remove-circle"
-                    size={20}
+                    size={24}
                     color="#f44336"
                   />
                 </TouchableOpacity>
@@ -499,66 +643,15 @@ export default function BuyScreen() {
             </React.Fragment>
           ))}
 
-          <View style={styles.loanSelectorContainer}>
-            <Text style={styles.loanSelectorLabel}>Select Loan Scenario:</Text>
-            <TouchableOpacity 
-              style={styles.loanDropdownButton}
-              onPress={() => setShowLoanDropdown(!showLoanDropdown)}
-            >
-              <Text style={styles.loanDropdownButtonText}>
-                {selectedLoan?.label || 'Select Loan'}
-              </Text>
-              <IconSymbol
-                ios_icon_name="chevron.down"
-                android_material_icon_name="arrow-drop-down"
-                size={20}
-                color="#424242"
-              />
-            </TouchableOpacity>
-            
-            {showLoanDropdown && (
-              <View style={styles.loanDropdownMenu}>
-                {loanItems.map((loan, index) => (
-                  <React.Fragment key={index}>
-                  <TouchableOpacity
-                    style={styles.loanDropdownMenuItem}
-                    onPress={() => {
-                      setSelectedLoanId(loan.id);
-                      setShowLoanDropdown(false);
-                    }}
-                  >
-                    <Text style={styles.loanDropdownMenuItemText}>{loan.label}</Text>
-                  </TouchableOpacity>
-                  </React.Fragment>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.inputWithPrefix}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={[commonStyles.input, styles.inputWithPrefixField]}
-              placeholder="Enter pre-approved loan amount"
-              keyboardType="numeric"
-              value={currentLoanAmount}
-              onChangeText={(text) => updateLoanAmount(selectedLoanId, text)}
-              onBlur={() => Keyboard.dismiss()}
-            />
-          </View>
-
-          {viewMode === 'remaining' && (
+          {useSaleFundsForPurchase && (
             <>
-              <Text style={[commonStyles.label, { marginTop: 12 }]}>Your Savings</Text>
+              <Text style={[commonStyles.label, { marginTop: 12 }]}>Balance of Sale Funds</Text>
               <View style={styles.inputWithPrefix}>
                 <Text style={styles.inputPrefix}>$</Text>
                 <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder="Enter your total savings"
-                  keyboardType="numeric"
-                  value={savings}
-                  onChangeText={setSavings}
-                  onBlur={() => Keyboard.dismiss()}
+                  style={[commonStyles.input, styles.inputWithPrefixField, styles.lockedInput]}
+                  value={formatMoney(netProceeds)}
+                  editable={false}
                 />
               </View>
             </>
@@ -568,12 +661,16 @@ export default function BuyScreen() {
         <View style={commonStyles.card}>
           <View style={styles.sectionHeader}>
             <Text style={commonStyles.subtitle}>Additional Costs</Text>
-            <TouchableOpacity onPress={addCostItem} style={styles.addButton}>
+            <TouchableOpacity 
+              onPress={addCostItem} 
+              style={styles.addButton}
+              disabled={getAvailableCostOptions().length === 0}
+            >
               <IconSymbol
                 ios_icon_name="plus.circle.fill"
                 android_material_icon_name="add-circle"
                 size={24}
-                color="#424242"
+                color={getAvailableCostOptions().length === 0 ? '#d0d0d0' : '#424242'}
               />
             </TouchableOpacity>
           </View>
@@ -599,7 +696,7 @@ export default function BuyScreen() {
                 
                 {showDropdown === item.id && (
                   <View style={styles.dropdownMenu}>
-                    {COST_OPTIONS.map((option, optIndex) => (
+                    {getAvailableCostOptions().map((option, optIndex) => (
                       <React.Fragment key={optIndex}>
                       <TouchableOpacity
                         style={styles.dropdownMenuItem}
@@ -756,6 +853,54 @@ export default function BuyScreen() {
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={showLoanModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLoanModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Loan Details</Text>
+            
+            <Text style={styles.modalLabel}>Loan Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="e.g. Commonwealth Bank"
+              value={tempLoanName}
+              onChangeText={setTempLoanName}
+            />
+            
+            <Text style={styles.modalLabel}>Pre-Approval Amount</Text>
+            <View style={styles.inputWithPrefix}>
+              <Text style={styles.inputPrefix}>$</Text>
+              <TextInput
+                style={[styles.modalInput, styles.inputWithPrefixField]}
+                placeholder="Enter amount"
+                keyboardType="numeric"
+                value={tempLoanAmount}
+                onChangeText={setTempLoanAmount}
+              />
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowLoanModal(false)}
+              >
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSave]}
+                onPress={saveLoan}
+              >
+                <Text style={styles.modalButtonTextSave}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -953,18 +1098,16 @@ const styles = StyleSheet.create({
   addButton: {
     padding: 4,
   },
-  loanItemRow: {
+  editButton: {
+    padding: 8,
+  },
+  loanDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
-  },
-  loanLabelInput: {
-    flex: 1,
-    marginVertical: 0,
   },
   loanSelectorContainer: {
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 8,
   },
   loanSelectorLabel: {
@@ -973,47 +1116,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontFamily: 'CourierPrime_400Regular',
   },
-  loanDropdownButton: {
+  loanOptions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
+    gap: 8,
+    paddingHorizontal: 4,
   },
-  loanDropdownButtonText: {
-    fontSize: 16,
-    color: colors.text,
-    fontFamily: 'CourierPrime_400Regular',
-    flex: 1,
-  },
-  loanDropdownMenu: {
-    position: 'absolute',
-    top: 70,
-    left: 0,
-    right: 0,
+  loanOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: '#ffffff',
-    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 1000,
+    borderColor: '#9e9e9e',
+    minWidth: 60,
+    alignItems: 'center',
   },
-  loanDropdownMenuItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  loanOptionActive: {
+    backgroundColor: '#424242',
+    borderColor: '#424242',
   },
-  loanDropdownMenuItemText: {
-    fontSize: 16,
-    color: colors.text,
-    fontFamily: 'CourierPrime_400Regular',
+  loanOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#424242',
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  loanOptionTextActive: {
+    color: '#ffffff',
   },
   inputWithPrefix: {
     flexDirection: 'row',
@@ -1023,6 +1152,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     marginVertical: 8,
+    flex: 1,
   },
   inputPrefix: {
     fontSize: 16,
@@ -1035,6 +1165,16 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 0,
     marginVertical: 0,
+  },
+  lockedInput: {
+    backgroundColor: '#f5f5f5',
+    color: colors.textSecondary,
+  },
+  savingsItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
   costItemRow: {
     flexDirection: 'row',
@@ -1078,6 +1218,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     zIndex: 2000,
+    maxHeight: 200,
   },
   dropdownMenuItem: {
     padding: 12,
@@ -1221,5 +1362,73 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+    marginTop: 12,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  modalInput: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: colors.text,
+    fontFamily: 'CourierPrime_400Regular',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: colors.border,
+  },
+  modalButtonSave: {
+    backgroundColor: '#424242',
+  },
+  modalButtonTextCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  modalButtonTextSave: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    fontFamily: 'CourierPrime_700Bold',
   },
 });
