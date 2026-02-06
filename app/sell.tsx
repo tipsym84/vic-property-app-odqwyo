@@ -46,6 +46,7 @@ export default function SellScreen() {
   ]);
 
   useEffect(() => {
+    console.log('Sell screen mounted - loading initial data');
     loadSellScreenData();
   }, []);
 
@@ -56,15 +57,16 @@ export default function SellScreen() {
     }, [])
   );
 
-  // Save data whenever it changes
+  // Save data whenever any state changes
   useEffect(() => {
+    console.log('Sell screen state changed - saving data');
     saveSellScreenData();
   }, [mortgageToBeRepaid, mortgageRepaidInFull, useSaleFunds, salePrice, priceIncrement, 
       advertisingCosts, legalFees, debtItems, partialRepaymentAmount, commissionTiers]);
 
   const loadSellScreenData = async () => {
     try {
-      console.log('Loading Sell screen data from storage');
+      console.log('Loading Sell screen data from AsyncStorage');
       const savedData = await AsyncStorage.getItem('sellScreenData');
       if (savedData) {
         const data = JSON.parse(savedData);
@@ -83,6 +85,8 @@ export default function SellScreen() {
         if (data.debtItems && data.debtItems.length > 0) setDebtItems(data.debtItems);
         if (data.partialRepaymentAmount !== undefined) setPartialRepaymentAmount(data.partialRepaymentAmount);
         if (data.commissionTiers && data.commissionTiers.length > 0) setCommissionTiers(data.commissionTiers);
+      } else {
+        console.log('No saved Sell screen data found - using defaults');
       }
     } catch (error) {
       console.error('Error loading Sell screen data:', error);
@@ -104,7 +108,7 @@ export default function SellScreen() {
         commissionTiers,
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen data');
+      console.log('Saved Sell screen data to AsyncStorage');
     } catch (error) {
       console.error('Error saving Sell screen data:', error);
     }
@@ -210,20 +214,33 @@ export default function SellScreen() {
   
   // Calculate total debt from all debt items
   const totalDebt = debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  console.log('Total debt calculated:', totalDebt, 'from items:', debtItems);
   
+  // Determine how much debt to deduct
   let debtToDeduct = 0;
   if (mortgageToBeRepaid) {
     if (mortgageRepaidInFull) {
       debtToDeduct = totalDebt;
+      console.log('Mortgage repaid in full - deducting total debt:', debtToDeduct);
     } else {
       debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
+      console.log('Partial repayment - deducting:', debtToDeduct);
     }
+  } else {
+    console.log('Mortgage not being repaid - no debt deduction');
   }
   
   const dischargeFee = mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0;
 
   const totalCosts = commission + advertising + legal + dischargeFee;
   const netProceedsValue = price - totalCosts - debtToDeduct;
+  
+  console.log('Net proceeds calculation:', {
+    price,
+    totalCosts,
+    debtToDeduct,
+    netProceedsValue
+  });
 
   useEffect(() => {
     console.log('Sell screen: Net proceeds updated to', netProceedsValue);
@@ -247,6 +264,7 @@ export default function SellScreen() {
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
+    console.log('Updating commission tier', id, field, 'to', value);
     const updatedTiers = commissionTiers.map(tier => 
       tier.id === id ? { ...tier, [field]: value } : tier
     );
@@ -270,6 +288,7 @@ export default function SellScreen() {
 
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
+    console.log('Adding new debt item with id:', newId);
     setDebtItems([...debtItems, { id: newId, amount: '' }]);
   };
 
@@ -282,6 +301,7 @@ export default function SellScreen() {
 
   const removeDebtItem = (id: string) => {
     if (debtItems.length > 1) {
+      console.log('Removing debt item:', id);
       setDebtItems(debtItems.filter(item => item.id !== id));
     }
   };
@@ -667,13 +687,18 @@ export default function SellScreen() {
 
             {mortgageToBeRepaid && debtItems.map((item, index) => {
               const debtAmount = parseFloat(item.amount) || 0;
+              
+              if (debtAmount === 0) {
+                return null;
+              }
+              
               const labelText = `Mortgage/Debt ${index + 1}`;
               
               let displayAmount = 0;
               if (mortgageRepaidInFull) {
                 displayAmount = debtAmount;
               } else if (index === 0) {
-                displayAmount = parseFloat(partialRepaymentAmount) || 0;
+                displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
               }
               
               return (
