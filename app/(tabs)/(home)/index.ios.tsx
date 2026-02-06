@@ -51,7 +51,7 @@ export default function HomeScreen() {
           <View style={[styles.featureIcon, { backgroundColor: '#f5f5f5' }]}>
             <IconSymbol 
               ios_icon_name="gavel.fill" 
-              android_material_icon_name="gavel" 
+              android_material_icon_name="store" 
               size={32} 
               color="#424242"
             />
