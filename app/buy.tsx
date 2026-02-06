@@ -7,7 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/utils/stampDutyCalculations';
 import { useProperty } from '@/contexts/PropertyContext';
-import { saveNumericValue, loadNumericValue, BUY_KEYS } from '@/utils/localStorage';
+import { saveNumericValue, loadNumericValue, saveToggleValue, loadToggleValue, BUY_KEYS } from '@/utils/localStorage';
 
 interface CostItem {
   id: string;
@@ -89,19 +89,19 @@ export default function BuyScreen() {
     isConcessionCardHolder: false,
   });
 
-  // Load all persisted numeric values on mount
+  // Load all persisted values on mount
   useEffect(() => {
-    console.log('Buy screen mounted - loading persisted numeric values');
+    console.log('Buy screen mounted - loading persisted values');
     loadAllNumericValues();
-    loadUserProfile();
+    loadAllToggleValues();
     loadBuyScreenData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Buy screen focused - reloading persisted numeric values');
+      console.log('Buy screen focused - reloading persisted values');
       loadAllNumericValues();
-      loadUserProfile();
+      loadAllToggleValues();
       loadBuyScreenData();
     }, [])
   );
@@ -136,29 +136,33 @@ export default function BuyScreen() {
     }
   };
 
+  // Load all toggle values from localStorage
+  const loadAllToggleValues = async () => {
+    console.log('Loading all toggle values from localStorage');
+    
+    // Load Primary Residence toggle
+    const primaryResidence = await loadToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, true);
+    
+    // Load First Home Owner toggle
+    const firstHomeOwner = await loadToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
+    
+    // Load Concession Card toggle
+    const concessionCard = await loadToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, false);
+    
+    const newProfile = {
+      isPrimaryResidence: primaryResidence,
+      isFirstHomeBuyer: firstHomeOwner,
+      isConcessionCardHolder: concessionCard,
+    };
+    
+    console.log('Loaded toggle values:', newProfile);
+    setUserProfile(newProfile);
+  };
+
   // Save data whenever it changes
   useEffect(() => {
     saveBuyScreenData();
   }, [currentBid, bidIncrement, loans, selectedLoanId, savingsItems, costItems, viewMode]);
-
-  const loadUserProfile = async () => {
-    try {
-      const primaryResidence = await AsyncStorage.getItem('isPrimaryResidence');
-      const firstHomeBuyer = await AsyncStorage.getItem('isFirstHomeBuyer');
-      const concessionCard = await AsyncStorage.getItem('isConcessionCardHolder');
-      
-      const newProfile = {
-        isPrimaryResidence: primaryResidence === 'true',
-        isFirstHomeBuyer: firstHomeBuyer === 'true',
-        isConcessionCardHolder: concessionCard === 'true',
-      };
-      
-      console.log('Loaded user profile:', newProfile);
-      setUserProfile(newProfile);
-    } catch (error) {
-      console.log('Error loading user profile:', error);
-    }
-  };
 
   const loadBuyScreenData = async () => {
     try {
@@ -230,18 +234,8 @@ export default function BuyScreen() {
     }
   };
 
-  const saveUserProfile = async (profile: UserProfile) => {
-    try {
-      await AsyncStorage.setItem('isPrimaryResidence', profile.isPrimaryResidence.toString());
-      await AsyncStorage.setItem('isFirstHomeBuyer', profile.isFirstHomeBuyer.toString());
-      await AsyncStorage.setItem('isConcessionCardHolder', profile.isConcessionCardHolder.toString());
-      console.log('Saved user profile:', profile);
-    } catch (error) {
-      console.log('Error saving user profile:', error);
-    }
-  };
-
-  const handlePrimaryResidenceToggle = (value: boolean) => {
+  const handlePrimaryResidenceToggle = async (value: boolean) => {
+    console.log('User toggled Primary Residence to:', value);
     const newProfile = {
       ...userProfile,
       isPrimaryResidence: value,
@@ -249,28 +243,42 @@ export default function BuyScreen() {
       isConcessionCardHolder: value ? userProfile.isConcessionCardHolder : false,
     };
     setUserProfile(newProfile);
-    saveUserProfile(newProfile);
+    
+    // Persist to localStorage immediately
+    await saveToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, value);
+    if (!value) {
+      // If turning off primary residence, also turn off dependent toggles
+      await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
+      await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, false);
+    }
   };
 
-  const handleFirstHomeBuyerToggle = (value: boolean) => {
+  const handleFirstHomeBuyerToggle = async (value: boolean) => {
+    console.log('User toggled First Home Owner to:', value);
     if (userProfile.isPrimaryResidence) {
       const newProfile = {
         ...userProfile,
         isFirstHomeBuyer: value,
       };
       setUserProfile(newProfile);
-      saveUserProfile(newProfile);
+      
+      // Persist to localStorage immediately
+      await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, value);
     }
   };
 
-  const handleConcessionCardToggle = (value: boolean) => {
+  const handleConcessionCardToggle = async (value: boolean) => {
+    console.log('User toggled Concession Card to:', value);
     if (userProfile.isPrimaryResidence) {
       const newProfile = {
         ...userProfile,
         isConcessionCardHolder: value,
       };
       setUserProfile(newProfile);
-      saveUserProfile(newProfile);
+      
+      // Persist to localStorage immediately
+      await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, value);
+      
       if (value) {
         showConcessionAlert();
       }

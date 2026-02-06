@@ -10,6 +10,10 @@ export const BUY_KEYS = {
   SAVINGS_AMOUNT: 'buy_savingsAmount_',  // Append savings ID
   COST_AMOUNT: 'buy_costAmount_',  // Append cost ID
   PARTIAL_REPAYMENT: 'buy_partialRepayment',
+  // Toggle keys
+  PRIMARY_RESIDENCE_TOGGLE: 'buy_primaryResidenceToggle',
+  FIRST_HOME_OWNER_TOGGLE: 'buy_firstHomeOwnerToggle',
+  CONCESSION_CARD_TOGGLE: 'buy_concessionCardToggle',
 };
 
 // Fixed keys for Sell screen numeric inputs
@@ -24,6 +28,10 @@ export const SELL_KEYS = {
   COMMISSION_FROM: 'sell_commissionFrom_',  // Append tier ID
   COMMISSION_TO: 'sell_commissionTo_',  // Append tier ID
   COMMISSION_RATE: 'sell_commissionRate_',  // Append tier ID
+  // Toggle keys
+  MORTGAGE_REPAID_TOGGLE: 'sell_mortgageRepaidToggle',
+  MORTGAGE_REPAID_FULL_TOGGLE: 'sell_mortgageRepaidFullToggle',
+  USE_SALE_FUNDS_TOGGLE: 'sell_useSaleFundsToggle',
 };
 
 /**
@@ -55,6 +63,42 @@ export const loadNumericValue = async (key: string): Promise<string | null> => {
   } catch (error) {
     console.error(`Failed to load ${key} from localStorage:`, error);
     return null;
+  }
+};
+
+/**
+ * Save a boolean toggle value to localStorage with a fixed key
+ * @param key - Fixed key for the toggle
+ * @param value - Boolean value to save
+ */
+export const saveToggleValue = async (key: string, value: boolean): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+    console.log(`Saved toggle to localStorage: ${key} = ${value}`);
+  } catch (error) {
+    console.error(`Failed to save toggle ${key} to localStorage:`, error);
+  }
+};
+
+/**
+ * Load a boolean toggle value from localStorage
+ * @param key - Fixed key for the toggle
+ * @param defaultValue - Default value if not found (default: false)
+ * @returns The stored boolean value or default
+ */
+export const loadToggleValue = async (key: string, defaultValue: boolean = false): Promise<boolean> => {
+  try {
+    const value = await AsyncStorage.getItem(key);
+    if (value !== null) {
+      const parsed = JSON.parse(value);
+      console.log(`Loaded toggle from localStorage: ${key} = ${parsed}`);
+      return parsed;
+    }
+    console.log(`No stored value for ${key}, using default: ${defaultValue}`);
+    return defaultValue;
+  } catch (error) {
+    console.error(`Failed to load toggle ${key} from localStorage:`, error);
+    return defaultValue;
   }
 };
 

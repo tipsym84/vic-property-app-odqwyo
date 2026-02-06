@@ -6,7 +6,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useProperty } from '@/contexts/PropertyContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { saveNumericValue, loadNumericValue, SELL_KEYS } from '@/utils/localStorage';
+import { saveNumericValue, loadNumericValue, saveToggleValue, loadToggleValue, SELL_KEYS } from '@/utils/localStorage';
 
 interface CommissionTier {
   id: string;
@@ -47,15 +47,17 @@ export default function SellScreen() {
   ]);
 
   useEffect(() => {
-    console.log('Sell screen mounted - loading persisted numeric values');
+    console.log('Sell screen mounted - loading persisted values');
     loadAllNumericValues();
+    loadAllToggleValues();
     loadSellScreenData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Sell screen focused - reloading persisted numeric values');
+      console.log('Sell screen focused - reloading persisted values');
       loadAllNumericValues();
+      loadAllToggleValues();
       loadSellScreenData();
     }, [])
   );
@@ -108,6 +110,29 @@ export default function SellScreen() {
     }
   };
 
+  // Load all toggle values from localStorage
+  const loadAllToggleValues = async () => {
+    console.log('Loading all toggle values from localStorage');
+    
+    // Load Mortgage to be repaid toggle
+    const mortgageRepaid = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, false);
+    setMortgageToBeRepaid(mortgageRepaid);
+    
+    // Load Mortgage repaid in full toggle
+    const mortgageRepaidFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, true);
+    setMortgageRepaidInFull(mortgageRepaidFull);
+    
+    // Load Use sale funds toggle
+    const useSaleFundsToggle = await loadToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, false);
+    setUseSaleFunds(useSaleFundsToggle);
+    
+    console.log('Loaded toggle values:', {
+      mortgageRepaid,
+      mortgageRepaidFull,
+      useSaleFundsToggle
+    });
+  };
+
   // Save data whenever any state changes
   useEffect(() => {
     console.log('Sell screen state changed - saving data');
@@ -122,10 +147,6 @@ export default function SellScreen() {
       if (savedData) {
         const data = JSON.parse(savedData);
         console.log('Loaded Sell screen data:', data);
-        
-        if (data.mortgageToBeRepaid !== undefined) setMortgageToBeRepaid(data.mortgageToBeRepaid);
-        if (data.mortgageRepaidInFull !== undefined) setMortgageRepaidInFull(data.mortgageRepaidInFull);
-        if (data.useSaleFunds !== undefined) setUseSaleFunds(data.useSaleFunds);
         
         if (data.debtItems && data.debtItems.length > 0) {
           setDebtItems(data.debtItems);
@@ -179,6 +200,30 @@ export default function SellScreen() {
     } catch (error) {
       console.error('Error saving Sell screen data:', error);
     }
+  };
+
+  const handleMortgageToBeRepaidToggle = async (value: boolean) => {
+    console.log('User toggled Mortgage to be repaid to:', value);
+    setMortgageToBeRepaid(value);
+    
+    // Persist to localStorage immediately
+    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
+  };
+
+  const handleMortgageRepaidInFullToggle = async (value: boolean) => {
+    console.log('User toggled Mortgage repaid in full to:', value);
+    setMortgageRepaidInFull(value);
+    
+    // Persist to localStorage immediately
+    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
+  };
+
+  const handleUseSaleFundsToggle = async (value: boolean) => {
+    console.log('User toggled Use sale funds to:', value);
+    setUseSaleFunds(value);
+    
+    // Persist to localStorage immediately
+    await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
   const calculateCommission = (price: number): number => {
@@ -463,7 +508,7 @@ export default function SellScreen() {
                 <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
                 <Switch
                   value={mortgageToBeRepaid}
-                  onValueChange={setMortgageToBeRepaid}
+                  onValueChange={handleMortgageToBeRepaidToggle}
                   trackColor={{ false: '#d0d0d0', true: '#81c784' }}
                   thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
                 />
@@ -475,7 +520,7 @@ export default function SellScreen() {
                     <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
                     <Switch
                       value={mortgageRepaidInFull}
-                      onValueChange={setMortgageRepaidInFull}
+                      onValueChange={handleMortgageRepaidInFullToggle}
                       trackColor={{ false: '#d0d0d0', true: '#81c784' }}
                       thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
                     />
@@ -487,7 +532,7 @@ export default function SellScreen() {
                 <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
                 <Switch
                   value={useSaleFunds}
-                  onValueChange={setUseSaleFunds}
+                  onValueChange={handleUseSaleFundsToggle}
                   trackColor={{ false: '#d0d0d0', true: '#81c784' }}
                   thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
                 />
