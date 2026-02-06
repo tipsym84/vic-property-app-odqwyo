@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch, TouchableWithoutFeedback } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -90,14 +90,21 @@ export default function BuyScreen() {
 
   useEffect(() => {
     loadUserProfile();
+    loadBuyScreenData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Buy screen focused - reloading profile settings');
+      console.log('Buy screen focused - reloading profile settings and data');
       loadUserProfile();
+      loadBuyScreenData();
     }, [])
   );
+
+  // Save data whenever it changes
+  useEffect(() => {
+    saveBuyScreenData();
+  }, [currentBid, bidIncrement, loans, selectedLoanId, savingsItems, costItems, viewMode]);
 
   const loadUserProfile = async () => {
     try {
@@ -115,6 +122,48 @@ export default function BuyScreen() {
       setUserProfile(newProfile);
     } catch (error) {
       console.log('Error loading user profile:', error);
+    }
+  };
+
+  const loadBuyScreenData = async () => {
+    try {
+      console.log('Loading Buy screen data from storage');
+      const savedData = await AsyncStorage.getItem('buyScreenData');
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        console.log('Loaded Buy screen data:', data);
+        
+        if (data.currentBid !== undefined) {
+          setCurrentBid(data.currentBid);
+          setCurrentBidText(data.currentBid.toLocaleString('en-US'));
+        }
+        if (data.bidIncrement !== undefined) setBidIncrement(data.bidIncrement);
+        if (data.loans) setLoans(data.loans);
+        if (data.selectedLoanId) setSelectedLoanId(data.selectedLoanId);
+        if (data.savingsItems) setSavingsItems(data.savingsItems);
+        if (data.costItems) setCostItems(data.costItems);
+        if (data.viewMode) setViewMode(data.viewMode);
+      }
+    } catch (error) {
+      console.error('Error loading Buy screen data:', error);
+    }
+  };
+
+  const saveBuyScreenData = async () => {
+    try {
+      const data = {
+        currentBid,
+        bidIncrement,
+        loans,
+        selectedLoanId,
+        savingsItems,
+        costItems,
+        viewMode,
+      };
+      await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
+      console.log('Saved Buy screen data');
+    } catch (error) {
+      console.error('Error saving Buy screen data:', error);
     }
   };
 
@@ -695,18 +744,29 @@ export default function BuyScreen() {
                 </TouchableOpacity>
                 
                 {showDropdown === item.id && (
-                  <View style={styles.dropdownMenu}>
-                    {getAvailableCostOptions().map((option, optIndex) => (
-                      <React.Fragment key={optIndex}>
-                      <TouchableOpacity
-                        style={styles.dropdownMenuItem}
-                        onPress={() => updateCostItemType(item.id, option)}
+                  <>
+                    <TouchableWithoutFeedback onPress={() => setShowDropdown(null)}>
+                      <View style={styles.dropdownOverlay} />
+                    </TouchableWithoutFeedback>
+                    <View style={styles.dropdownMenu}>
+                      <ScrollView 
+                        style={styles.dropdownScrollView}
+                        nestedScrollEnabled={true}
+                        keyboardShouldPersistTaps="handled"
                       >
-                        <Text style={styles.dropdownMenuItemText}>{option}</Text>
-                      </TouchableOpacity>
-                      </React.Fragment>
-                    ))}
-                  </View>
+                        {getAvailableCostOptions().map((option, optIndex) => (
+                          <React.Fragment key={optIndex}>
+                          <TouchableOpacity
+                            style={styles.dropdownMenuItem}
+                            onPress={() => updateCostItemType(item.id, option)}
+                          >
+                            <Text style={styles.dropdownMenuItemText}>{option}</Text>
+                          </TouchableOpacity>
+                          </React.Fragment>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </>
                 )}
               </View>
 
@@ -791,7 +851,7 @@ export default function BuyScreen() {
           <View style={styles.divider} />
 
           <View style={styles.resultRow}>
-            <Text style={styles.totalLabel}>Total Amount Required</Text>
+            <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>${formatMoney(totalRequired)}</Text>
           </View>
         </View>
@@ -860,46 +920,62 @@ export default function BuyScreen() {
         animationType="fade"
         onRequestClose={() => setShowLoanModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Loan Details</Text>
-            
-            <Text style={styles.modalLabel}>Loan Name</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="e.g. Commonwealth Bank"
-              value={tempLoanName}
-              onChangeText={setTempLoanName}
-            />
-            
-            <Text style={styles.modalLabel}>Pre-Approval Amount</Text>
-            <View style={styles.inputWithPrefix}>
-              <Text style={styles.inputPrefix}>$</Text>
-              <TextInput
-                style={[styles.modalInput, styles.inputWithPrefixField]}
-                placeholder="Enter amount"
-                keyboardType="numeric"
-                value={tempLoanAmount}
-                onChangeText={setTempLoanAmount}
-              />
-            </View>
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowLoanModal(false)}
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <ScrollView 
+                contentContainerStyle={styles.modalScrollContent}
+                keyboardShouldPersistTaps="handled"
+                onScroll={() => Keyboard.dismiss()}
+                scrollEventThrottle={16}
               >
-                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.modalButtonSave]}
-                onPress={saveLoan}
-              >
-                <Text style={styles.modalButtonTextSave}>Save</Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Loan Details</Text>
+                  
+                  <Text style={styles.modalLabel}>Loan Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="e.g. CBA"
+                    value={tempLoanName}
+                    onChangeText={setTempLoanName}
+                    onFocus={() => {
+                      if (tempLoanName.startsWith('Loan ')) {
+                        setTempLoanName('');
+                      }
+                    }}
+                  />
+                  
+                  <Text style={styles.modalLabel}>Pre-Approval Amount</Text>
+                  <View style={styles.modalInputWithPrefix}>
+                    <Text style={styles.inputPrefix}>$</Text>
+                    <TextInput
+                      style={[styles.modalInput, styles.modalInputWithPrefixField]}
+                      placeholder="Enter amount"
+                      keyboardType="numeric"
+                      value={tempLoanAmount}
+                      onChangeText={setTempLoanAmount}
+                    />
+                  </View>
+                  
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity 
+                      style={[styles.modalButton, styles.modalButtonCancel]}
+                      onPress={() => setShowLoanModal(false)}
+                    >
+                      <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.modalButton, styles.modalButtonSave]}
+                      onPress={saveLoan}
+                    >
+                      <Text style={styles.modalButtonTextSave}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -1203,6 +1279,14 @@ const styles = StyleSheet.create({
     fontFamily: 'CourierPrime_400Regular',
     flex: 1,
   },
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1999,
+  },
   dropdownMenu: {
     position: 'absolute',
     bottom: 50,
@@ -1214,10 +1298,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
     zIndex: 2000,
+    maxHeight: 200,
+  },
+  dropdownScrollView: {
     maxHeight: 200,
   },
   dropdownMenuItem: {
@@ -1366,6 +1453,9 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalScrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1376,6 +1466,20 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
+  },
+  modalInputWithPrefix: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    marginVertical: 8,
+  },
+  modalInputWithPrefixField: {
+    flex: 1,
+    borderWidth: 0,
+    marginVertical: 0,
   },
   modalTitle: {
     fontSize: 20,
