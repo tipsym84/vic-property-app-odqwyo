@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch, TouchableWithoutFeedback } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
@@ -7,6 +7,7 @@ import { IconSymbol } from '@/components/IconSymbol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculateStampDuty, calculateLandTransferFee, UserProfile } from '@/utils/stampDutyCalculations';
 import { useProperty } from '@/contexts/PropertyContext';
+import { saveNumericValue, loadNumericValue, BUY_KEYS } from '@/utils/localStorage';
 
 interface CostItem {
   id: string;
@@ -88,18 +89,52 @@ export default function BuyScreen() {
     isConcessionCardHolder: false,
   });
 
+  // Load all persisted numeric values on mount
   useEffect(() => {
+    console.log('Buy screen mounted - loading persisted numeric values');
+    loadAllNumericValues();
     loadUserProfile();
     loadBuyScreenData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Buy screen focused - reloading profile settings and data');
+      console.log('Buy screen focused - reloading persisted numeric values');
+      loadAllNumericValues();
       loadUserProfile();
       loadBuyScreenData();
     }, [])
   );
+
+  // Load all numeric values from localStorage
+  const loadAllNumericValues = async () => {
+    console.log('Loading all numeric values from localStorage');
+    
+    // Load current bid
+    const savedBid = await loadNumericValue(BUY_KEYS.CURRENT_BID);
+    if (savedBid !== null) {
+      const numValue = parseFloat(savedBid);
+      if (!isNaN(numValue)) {
+        setCurrentBid(numValue);
+        setCurrentBidText(numValue.toLocaleString('en-US'));
+      }
+    }
+    
+    // Load bid increment
+    const savedIncrement = await loadNumericValue(BUY_KEYS.BID_INCREMENT);
+    if (savedIncrement !== null) {
+      const numValue = parseFloat(savedIncrement);
+      if (!isNaN(numValue)) {
+        setBidIncrement(numValue);
+      }
+    }
+    
+    // Load custom increment
+    const savedCustomIncrement = await loadNumericValue(BUY_KEYS.CUSTOM_INCREMENT);
+    if (savedCustomIncrement !== null) {
+      setCustomIncrement(savedCustomIncrement);
+    }
+  };
 
   // Save data whenever it changes
   useEffect(() => {
@@ -133,15 +168,43 @@ export default function BuyScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Buy screen data:', data);
         
-        if (data.currentBid !== undefined) {
-          setCurrentBid(data.currentBid);
-          setCurrentBidText(data.currentBid.toLocaleString('en-US'));
+        if (data.loans) {
+          setLoans(data.loans);
+          // Load loan amounts from localStorage
+          for (const loan of data.loans) {
+            const savedAmount = await loadNumericValue(BUY_KEYS.LOAN_AMOUNT + loan.id);
+            if (savedAmount !== null) {
+              loan.amount = savedAmount;
+            }
+          }
+          setLoans([...data.loans]);
         }
-        if (data.bidIncrement !== undefined) setBidIncrement(data.bidIncrement);
-        if (data.loans) setLoans(data.loans);
         if (data.selectedLoanId) setSelectedLoanId(data.selectedLoanId);
-        if (data.savingsItems) setSavingsItems(data.savingsItems);
-        if (data.costItems) setCostItems(data.costItems);
+        
+        if (data.savingsItems) {
+          setSavingsItems(data.savingsItems);
+          // Load savings amounts from localStorage
+          for (const item of data.savingsItems) {
+            const savedAmount = await loadNumericValue(BUY_KEYS.SAVINGS_AMOUNT + item.id);
+            if (savedAmount !== null) {
+              item.amount = savedAmount;
+            }
+          }
+          setSavingsItems([...data.savingsItems]);
+        }
+        
+        if (data.costItems) {
+          setCostItems(data.costItems);
+          // Load cost amounts from localStorage
+          for (const item of data.costItems) {
+            const savedAmount = await loadNumericValue(BUY_KEYS.COST_AMOUNT + item.id);
+            if (savedAmount !== null) {
+              item.amount = savedAmount;
+            }
+          }
+          setCostItems([...data.costItems]);
+        }
+        
         if (data.viewMode) setViewMode(data.viewMode);
       }
     } catch (error) {
@@ -226,15 +289,19 @@ export default function BuyScreen() {
   };
 
   const handleBidTextChange = (text: string) => {
+    console.log('User changed current bid:', text);
     const cleanText = text.replace(/[^0-9]/g, '');
     const numValue = parseFloat(cleanText);
     if (!isNaN(numValue) && numValue >= 0) {
       setCurrentBid(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setCurrentBidText(formatted);
+      // Persist to localStorage immediately
+      saveNumericValue(BUY_KEYS.CURRENT_BID, cleanText);
     } else if (cleanText === '') {
       setCurrentBid(0);
       setCurrentBidText('');
+      saveNumericValue(BUY_KEYS.CURRENT_BID, '0');
     }
   };
 
@@ -245,10 +312,14 @@ export default function BuyScreen() {
   };
 
   const handleCustomIncrementSubmit = () => {
+    console.log('User submitted custom increment:', customIncrement);
     const value = parseFloat(customIncrement);
     if (!isNaN(value) && value > 0) {
       setBidIncrement(value);
       setShowCustomIncrementInput(false);
+      // Persist to localStorage
+      saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
+      saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
       Alert.alert('Invalid Value', 'Please enter a valid increment amount.');
     }
@@ -273,10 +344,13 @@ export default function BuyScreen() {
   const savingsRemaining = totalAvailableFunds - cashNeeded;
 
   const adjustBid = (amount: number) => {
+    console.log('User adjusted bid by:', amount);
     const newBid = Math.max(0, currentBid + amount);
     setCurrentBid(newBid);
     const formatted = newBid.toLocaleString('en-US');
     setCurrentBidText(formatted);
+    // Persist to localStorage immediately
+    saveNumericValue(BUY_KEYS.CURRENT_BID, newBid.toString());
   };
 
   const getAvailableCostOptions = () => {
@@ -317,15 +391,20 @@ export default function BuyScreen() {
   };
 
   const updateCostItemAmount = (id: string, amount: string) => {
+    console.log('User updated cost item amount:', id, amount);
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
+    // Persist to localStorage immediately
+    saveNumericValue(BUY_KEYS.COST_AMOUNT + id, amount);
   };
 
   const removeCostItem = (id: string) => {
     setCostItems(costItems.filter(item => item.id !== id));
     if (showDropdown === id) setShowDropdown(null);
     if (showCustomLabelInput === id) setShowCustomLabelInput(null);
+    // Clear from localStorage
+    saveNumericValue(BUY_KEYS.COST_AMOUNT + id, '');
   };
 
   const getCostItemDisplayLabel = (item: CostItem): string => {
@@ -355,6 +434,8 @@ export default function BuyScreen() {
   const saveLoan = () => {
     if (!editingLoanId) return;
     
+    console.log('User saved loan:', editingLoanId, tempLoanAmount);
+    
     const existingLoan = loans.find(l => l.id === editingLoanId);
     if (existingLoan) {
       setLoans(loans.map(l => 
@@ -364,6 +445,9 @@ export default function BuyScreen() {
       setLoans([...loans, { id: editingLoanId, name: tempLoanName, amount: tempLoanAmount }]);
       setSelectedLoanId(editingLoanId);
     }
+    
+    // Persist loan amount to localStorage
+    saveNumericValue(BUY_KEYS.LOAN_AMOUNT + editingLoanId, tempLoanAmount);
     
     setShowLoanModal(false);
     setEditingLoanId(null);
@@ -377,6 +461,8 @@ export default function BuyScreen() {
       if (selectedLoanId === id) {
         setSelectedLoanId(loans[0].id);
       }
+      // Clear from localStorage
+      saveNumericValue(BUY_KEYS.LOAN_AMOUNT + id, '');
     }
   };
 
@@ -386,14 +472,19 @@ export default function BuyScreen() {
   };
 
   const updateSavingsItem = (id: string, amount: string) => {
+    console.log('User updated savings item:', id, amount);
     setSavingsItems(savingsItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
+    // Persist to localStorage immediately
+    saveNumericValue(BUY_KEYS.SAVINGS_AMOUNT + id, amount);
   };
 
   const removeSavingsItem = (id: string) => {
     if (savingsItems.length > 1) {
       setSavingsItems(savingsItems.filter(item => item.id !== id));
+      // Clear from localStorage
+      saveNumericValue(BUY_KEYS.SAVINGS_AMOUNT + id, '');
     }
   };
 
@@ -401,6 +492,13 @@ export default function BuyScreen() {
 
   const handleScroll = () => {
     Keyboard.dismiss();
+  };
+
+  const handleIncrementChange = (value: number) => {
+    console.log('User changed increment to:', value);
+    setBidIncrement(value);
+    // Persist to localStorage immediately
+    saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
   };
 
   return (
@@ -547,7 +645,7 @@ export default function BuyScreen() {
                     bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
                   ]}
                   onPress={() => {
-                    setBidIncrement(option);
+                    handleIncrementChange(option);
                     setShowCustomIncrementInput(false);
                   }}
                 >
@@ -570,7 +668,10 @@ export default function BuyScreen() {
                 placeholder="Enter custom increment"
                 keyboardType="numeric"
                 value={customIncrement}
-                onChangeText={setCustomIncrement}
+                onChangeText={(text) => {
+                  setCustomIncrement(text);
+                  saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, text);
+                }}
                 onBlur={() => Keyboard.dismiss()}
               />
               <TouchableOpacity 
@@ -953,7 +1054,10 @@ export default function BuyScreen() {
                       placeholder="Enter amount"
                       keyboardType="numeric"
                       value={tempLoanAmount}
-                      onChangeText={setTempLoanAmount}
+                      onChangeText={(text) => {
+                        setTempLoanAmount(text);
+                        console.log('User typing loan amount:', text);
+                      }}
                     />
                   </View>
                   

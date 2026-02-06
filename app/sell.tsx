@@ -6,6 +6,7 @@ import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
 import { useProperty } from '@/contexts/PropertyContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveNumericValue, loadNumericValue, SELL_KEYS } from '@/utils/localStorage';
 
 interface CommissionTier {
   id: string;
@@ -46,16 +47,66 @@ export default function SellScreen() {
   ]);
 
   useEffect(() => {
-    console.log('Sell screen mounted - loading initial data');
+    console.log('Sell screen mounted - loading persisted numeric values');
+    loadAllNumericValues();
     loadSellScreenData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      console.log('Sell screen focused - reloading data');
+      console.log('Sell screen focused - reloading persisted numeric values');
+      loadAllNumericValues();
       loadSellScreenData();
     }, [])
   );
+
+  // Load all numeric values from localStorage
+  const loadAllNumericValues = async () => {
+    console.log('Loading all numeric values from localStorage');
+    
+    // Load sale price
+    const savedPrice = await loadNumericValue(SELL_KEYS.SALE_PRICE);
+    if (savedPrice !== null) {
+      const numValue = parseFloat(savedPrice);
+      if (!isNaN(numValue)) {
+        setSalePrice(numValue);
+        setSalePriceText(numValue.toLocaleString('en-US'));
+      }
+    }
+    
+    // Load price increment
+    const savedIncrement = await loadNumericValue(SELL_KEYS.PRICE_INCREMENT);
+    if (savedIncrement !== null) {
+      const numValue = parseFloat(savedIncrement);
+      if (!isNaN(numValue)) {
+        setPriceIncrement(numValue);
+      }
+    }
+    
+    // Load custom increment
+    const savedCustomIncrement = await loadNumericValue(SELL_KEYS.CUSTOM_INCREMENT);
+    if (savedCustomIncrement !== null) {
+      setCustomIncrement(savedCustomIncrement);
+    }
+    
+    // Load advertising costs
+    const savedAdvertising = await loadNumericValue(SELL_KEYS.ADVERTISING_COSTS);
+    if (savedAdvertising !== null) {
+      setAdvertisingCosts(savedAdvertising);
+    }
+    
+    // Load legal fees
+    const savedLegal = await loadNumericValue(SELL_KEYS.LEGAL_FEES);
+    if (savedLegal !== null) {
+      setLegalFees(savedLegal);
+    }
+    
+    // Load partial repayment amount
+    const savedPartial = await loadNumericValue(SELL_KEYS.PARTIAL_REPAYMENT);
+    if (savedPartial !== null) {
+      setPartialRepaymentAmount(savedPartial);
+    }
+  };
 
   // Save data whenever any state changes
   useEffect(() => {
@@ -75,16 +126,32 @@ export default function SellScreen() {
         if (data.mortgageToBeRepaid !== undefined) setMortgageToBeRepaid(data.mortgageToBeRepaid);
         if (data.mortgageRepaidInFull !== undefined) setMortgageRepaidInFull(data.mortgageRepaidInFull);
         if (data.useSaleFunds !== undefined) setUseSaleFunds(data.useSaleFunds);
-        if (data.salePrice !== undefined) {
-          setSalePrice(data.salePrice);
-          setSalePriceText(data.salePrice.toLocaleString('en-US'));
+        
+        if (data.debtItems && data.debtItems.length > 0) {
+          setDebtItems(data.debtItems);
+          // Load debt amounts from localStorage
+          for (const item of data.debtItems) {
+            const savedAmount = await loadNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id);
+            if (savedAmount !== null) {
+              item.amount = savedAmount;
+            }
+          }
+          setDebtItems([...data.debtItems]);
         }
-        if (data.priceIncrement !== undefined) setPriceIncrement(data.priceIncrement);
-        if (data.advertisingCosts !== undefined) setAdvertisingCosts(data.advertisingCosts);
-        if (data.legalFees !== undefined) setLegalFees(data.legalFees);
-        if (data.debtItems && data.debtItems.length > 0) setDebtItems(data.debtItems);
-        if (data.partialRepaymentAmount !== undefined) setPartialRepaymentAmount(data.partialRepaymentAmount);
-        if (data.commissionTiers && data.commissionTiers.length > 0) setCommissionTiers(data.commissionTiers);
+        
+        if (data.commissionTiers && data.commissionTiers.length > 0) {
+          setCommissionTiers(data.commissionTiers);
+          // Load commission tier values from localStorage
+          for (const tier of data.commissionTiers) {
+            const savedFrom = await loadNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id);
+            const savedTo = await loadNumericValue(SELL_KEYS.COMMISSION_TO + tier.id);
+            const savedRate = await loadNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id);
+            if (savedFrom !== null) tier.fromPrice = savedFrom;
+            if (savedTo !== null) tier.toPrice = savedTo;
+            if (savedRate !== null) tier.rate = savedRate;
+          }
+          setCommissionTiers([...data.commissionTiers]);
+        }
       } else {
         console.log('No saved Sell screen data found - using defaults');
       }
@@ -151,15 +218,19 @@ export default function SellScreen() {
   };
 
   const handlePriceTextChange = (text: string) => {
+    console.log('User changed sale price:', text);
     const cleanText = text.replace(/[^0-9]/g, '');
     const numValue = parseFloat(cleanText);
     if (!isNaN(numValue) && numValue >= 0) {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
+      // Persist to localStorage immediately
+      saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
       setSalePriceText('');
+      saveNumericValue(SELL_KEYS.SALE_PRICE, '0');
     }
   };
 
@@ -170,17 +241,24 @@ export default function SellScreen() {
   };
 
   const adjustPrice = (amount: number) => {
+    console.log('User adjusted price by:', amount);
     const newPrice = Math.max(0, salePrice + amount);
     setSalePrice(newPrice);
     const formatted = newPrice.toLocaleString('en-US');
     setSalePriceText(formatted);
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
   };
 
   const handleCustomIncrementSubmit = () => {
+    console.log('User submitted custom increment:', customIncrement);
     const value = parseFloat(customIncrement);
     if (!isNaN(value) && value > 0) {
       setPriceIncrement(value);
       setShowCustomIncrementInput(false);
+      // Persist to localStorage
+      saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
+      saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
       setShowCustomIncrementInput(false);
     }
@@ -264,7 +342,7 @@ export default function SellScreen() {
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
-    console.log('Updating commission tier', id, field, 'to', value);
+    console.log('User updated commission tier', id, field, 'to', value);
     const updatedTiers = commissionTiers.map(tier => 
       tier.id === id ? { ...tier, [field]: value } : tier
     );
@@ -278,11 +356,24 @@ export default function SellScreen() {
     }
     
     setCommissionTiers(updatedTiers);
+    
+    // Persist to localStorage immediately
+    if (field === 'fromPrice') {
+      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, value);
+    } else if (field === 'toPrice') {
+      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, value);
+    } else if (field === 'rate') {
+      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, value);
+    }
   };
 
   const removeCommissionTier = (id: string) => {
     if (commissionTiers.length > 1) {
       setCommissionTiers(commissionTiers.filter(tier => tier.id !== id));
+      // Clear from localStorage
+      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
+      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
+      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
     }
   };
 
@@ -293,21 +384,53 @@ export default function SellScreen() {
   };
 
   const updateDebtItem = (id: string, amount: string) => {
-    console.log('Updating debt item', id, 'with amount', amount);
+    console.log('User updated debt item', id, 'with amount', amount);
     setDebtItems(debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.DEBT_AMOUNT + id, amount);
   };
 
   const removeDebtItem = (id: string) => {
     if (debtItems.length > 1) {
       console.log('Removing debt item:', id);
       setDebtItems(debtItems.filter(item => item.id !== id));
+      // Clear from localStorage
+      saveNumericValue(SELL_KEYS.DEBT_AMOUNT + id, '');
     }
   };
 
   const formatMoney = (value: number): string => {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const handleIncrementChange = (value: number) => {
+    console.log('User changed increment to:', value);
+    setPriceIncrement(value);
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
+  };
+
+  const handleAdvertisingChange = (text: string) => {
+    console.log('User changed advertising costs:', text);
+    setAdvertisingCosts(text);
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
+  };
+
+  const handleLegalFeesChange = (text: string) => {
+    console.log('User changed legal fees:', text);
+    setLegalFees(text);
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
+  };
+
+  const handlePartialRepaymentChange = (text: string) => {
+    console.log('User changed partial repayment amount:', text);
+    setPartialRepaymentAmount(text);
+    // Persist to localStorage immediately
+    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
 
   return (
@@ -447,7 +570,7 @@ export default function SellScreen() {
                       priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
                     ]}
                     onPress={() => {
-                      setPriceIncrement(option);
+                      handleIncrementChange(option);
                       setShowCustomIncrementInput(false);
                     }}
                   >
@@ -470,7 +593,10 @@ export default function SellScreen() {
                   placeholder="Enter custom increment"
                   keyboardType="numeric"
                   value={customIncrement}
-                  onChangeText={setCustomIncrement}
+                  onChangeText={(text) => {
+                    setCustomIncrement(text);
+                    saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
+                  }}
                   onBlur={() => Keyboard.dismiss()}
                 />
                 <TouchableOpacity 
@@ -577,7 +703,7 @@ export default function SellScreen() {
                 placeholder="Enter advertising costs"
                 keyboardType="numeric"
                 value={advertisingCosts}
-                onChangeText={setAdvertisingCosts}
+                onChangeText={handleAdvertisingChange}
                 onBlur={() => Keyboard.dismiss()}
               />
             </View>
@@ -590,7 +716,7 @@ export default function SellScreen() {
                 placeholder="Enter legal fees"
                 keyboardType="numeric"
                 value={legalFees}
-                onChangeText={setLegalFees}
+                onChangeText={handleLegalFeesChange}
                 onBlur={() => Keyboard.dismiss()}
               />
             </View>
@@ -645,7 +771,7 @@ export default function SellScreen() {
                     placeholder="Enter partial repayment amount"
                     keyboardType="numeric"
                     value={partialRepaymentAmount}
-                    onChangeText={setPartialRepaymentAmount}
+                    onChangeText={handlePartialRepaymentChange}
                     onBlur={() => Keyboard.dismiss()}
                   />
                 </View>
