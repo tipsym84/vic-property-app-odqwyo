@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
@@ -46,6 +46,7 @@ export default function SellScreen() {
     { id: '1', fromPrice: '', toPrice: '', rate: '' },
   ]);
 
+  // Load data on mount
   useEffect(() => {
     console.log('Sell screen mounted - loading persisted values');
     loadAllNumericValues();
@@ -53,6 +54,7 @@ export default function SellScreen() {
     loadSellScreenData();
   }, []);
 
+  // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       console.log('Sell screen focused - reloading persisted values');
@@ -133,13 +135,6 @@ export default function SellScreen() {
     });
   };
 
-  // Save data whenever any state changes
-  useEffect(() => {
-    console.log('Sell screen state changed - saving data');
-    saveSellScreenData();
-  }, [mortgageToBeRepaid, mortgageRepaidInFull, useSaleFunds, salePrice, priceIncrement, 
-      advertisingCosts, legalFees, debtItems, partialRepaymentAmount, commissionTiers]);
-
   const loadSellScreenData = async () => {
     try {
       console.log('Loading Sell screen data from AsyncStorage');
@@ -181,26 +176,25 @@ export default function SellScreen() {
     }
   };
 
-  const saveSellScreenData = async () => {
+  // Save complex data structures (debt items, commission tiers) only
+  // Individual field values are saved in their respective handlers
+  const saveSellScreenData = useCallback(async () => {
     try {
       const data = {
-        mortgageToBeRepaid,
-        mortgageRepaidInFull,
-        useSaleFunds,
-        salePrice,
-        priceIncrement,
-        advertisingCosts,
-        legalFees,
-        debtItems,
-        partialRepaymentAmount,
-        commissionTiers,
+        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only, amounts saved separately
+        commissionTiers: commissionTiers.map(tier => ({ 
+          id: tier.id, 
+          fromPrice: '', 
+          toPrice: '', 
+          rate: '' 
+        })), // Structure only, values saved separately
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen data to AsyncStorage');
+      console.log('Saved Sell screen structure to AsyncStorage');
     } catch (error) {
       console.error('Error saving Sell screen data:', error);
     }
-  };
+  }, [debtItems, commissionTiers]);
 
   const handleMortgageToBeRepaidToggle = async (value: boolean) => {
     console.log('User toggled Mortgage to be repaid to:', value);
@@ -226,7 +220,8 @@ export default function SellScreen() {
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
-  const calculateCommission = (price: number): number => {
+  // Memoized commission calculation - only recalculates when dependencies change
+  const calculateCommission = useCallback((price: number): number => {
     // If only one tier and no from/to values, apply rate to entire sale price
     if (commissionTiers.length === 1) {
       const tier = commissionTiers[0];
@@ -260,7 +255,7 @@ export default function SellScreen() {
     }
     
     return totalCommission;
-  };
+  }, [commissionTiers]);
 
   const handlePriceTextChange = (text: string) => {
     console.log('User changed sale price:', text);
@@ -309,81 +304,90 @@ export default function SellScreen() {
     }
   };
 
-  const handleScroll = () => {
-    console.log('User scrolled - dismissing keyboard');
+  // Keyboard dismiss on scroll - this is lightweight and doesn't cause lag
+  const handleScroll = useCallback(() => {
     Keyboard.dismiss();
-  };
+  }, []);
 
-  const handleTapOutside = () => {
+  const handleTapOutside = useCallback(() => {
     console.log('User tapped outside - dismissing keyboard');
     Keyboard.dismiss();
-  };
+  }, []);
 
-  const price = salePrice;
-  const commission = calculateCommission(price);
-  const advertising = parseFloat(advertisingCosts) || 0;
-  const legal = parseFloat(legalFees) || 0;
-  
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
   
-  const getDynamicFontSize = (value: number): number => {
+  const getDynamicFontSize = useCallback((value: number): number => {
     const digits = Math.floor(Math.log10(Math.abs(value))) + 1;
     if (digits <= 5) return 48;
     if (digits === 6) return 42;
     if (digits === 7) return 36;
     if (digits === 8) return 32;
     return 28;
-  };
+  }, []);
+  
+  // Memoized calculations - only recalculate when dependencies change
+  const price = salePrice;
+  const commission = useMemo(() => calculateCommission(price), [calculateCommission, price]);
+  const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
+  const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
   
   // Calculate total debt from all debt items
-  const totalDebt = debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-  console.log('Total debt calculated:', totalDebt, 'from items:', debtItems);
+  const totalDebt = useMemo(() => 
+    debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
+    [debtItems]
+  );
   
   // Determine how much debt to deduct
-  let debtToDeduct = 0;
-  if (mortgageToBeRepaid) {
-    if (mortgageRepaidInFull) {
-      debtToDeduct = totalDebt;
-      console.log('Mortgage repaid in full - deducting total debt:', debtToDeduct);
-    } else {
-      debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
-      console.log('Partial repayment - deducting:', debtToDeduct);
+  const debtToDeduct = useMemo(() => {
+    if (!mortgageToBeRepaid) {
+      return 0;
     }
-  } else {
-    console.log('Mortgage not being repaid - no debt deduction');
-  }
+    if (mortgageRepaidInFull) {
+      return totalDebt;
+    }
+    return parseFloat(partialRepaymentAmount) || 0;
+  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
   
-  const dischargeFee = mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0;
+  const dischargeFee = useMemo(() => 
+    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
+    [mortgageToBeRepaid, debtToDeduct]
+  );
 
-  const totalCosts = commission + advertising + legal + dischargeFee;
-  const netProceedsValue = price - totalCosts - debtToDeduct;
+  const totalCosts = useMemo(() => 
+    commission + advertising + legal + dischargeFee,
+    [commission, advertising, legal, dischargeFee]
+  );
   
-  console.log('Net proceeds calculation:', {
-    price,
-    totalCosts,
-    debtToDeduct,
-    netProceedsValue
-  });
+  const netProceedsValue = useMemo(() => 
+    price - totalCosts - debtToDeduct,
+    [price, totalCosts, debtToDeduct]
+  );
 
+  // Update context only when net proceeds changes
   useEffect(() => {
     console.log('Sell screen: Net proceeds updated to', netProceedsValue);
     setNetProceeds(netProceedsValue);
-  }, [netProceedsValue]);
+  }, [netProceedsValue, setNetProceeds]);
 
+  // Update context only when use sale funds toggle changes
   useEffect(() => {
     console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
     setUseSaleFundsForPurchase(useSaleFunds);
-  }, [useSaleFunds]);
+  }, [useSaleFunds, setUseSaleFundsForPurchase]);
 
   const addCommissionTier = () => {
     const newId = (commissionTiers.length + 1).toString();
     const lastTier = commissionTiers[commissionTiers.length - 1];
     const newFrom = lastTier && lastTier.toPrice ? lastTier.toPrice : '0';
     
-    setCommissionTiers([
+    const updatedTiers = [
       ...commissionTiers,
       { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
-    ]);
+    ];
+    setCommissionTiers(updatedTiers);
+    
+    // Save structure change
+    saveSellScreenData();
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
@@ -414,18 +418,27 @@ export default function SellScreen() {
 
   const removeCommissionTier = (id: string) => {
     if (commissionTiers.length > 1) {
-      setCommissionTiers(commissionTiers.filter(tier => tier.id !== id));
+      const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
+      setCommissionTiers(updatedTiers);
+      
       // Clear from localStorage
       saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
+      
+      // Save structure change
+      saveSellScreenData();
     }
   };
 
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
     console.log('Adding new debt item with id:', newId);
-    setDebtItems([...debtItems, { id: newId, amount: '' }]);
+    const updatedItems = [...debtItems, { id: newId, amount: '' }];
+    setDebtItems(updatedItems);
+    
+    // Save structure change
+    saveSellScreenData();
   };
 
   const updateDebtItem = (id: string, amount: string) => {
@@ -440,15 +453,20 @@ export default function SellScreen() {
   const removeDebtItem = (id: string) => {
     if (debtItems.length > 1) {
       console.log('Removing debt item:', id);
-      setDebtItems(debtItems.filter(item => item.id !== id));
+      const updatedItems = debtItems.filter(item => item.id !== id);
+      setDebtItems(updatedItems);
+      
       // Clear from localStorage
       saveNumericValue(SELL_KEYS.DEBT_AMOUNT + id, '');
+      
+      // Save structure change
+      saveSellScreenData();
     }
   };
 
-  const formatMoney = (value: number): string => {
+  const formatMoney = useCallback((value: number): string => {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
+  }, []);
 
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
