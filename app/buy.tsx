@@ -32,12 +32,15 @@ const formatMoney = (value: number): string => {
 };
 
 const getDynamicFontSize = (value: number): number => {
-  const digits = Math.floor(Math.log10(Math.abs(value))) + 1;
+  const valueStr = Math.abs(value).toString().replace(/[^0-9]/g, '');
+  const digits = valueStr.length;
+  
   if (digits <= 5) return 48;
   if (digits === 6) return 42;
   if (digits === 7) return 36;
   if (digits === 8) return 32;
-  return 28;
+  if (digits === 9) return 28;
+  return 24;
 };
 
 const ALL_COST_OPTIONS = [
@@ -56,8 +59,8 @@ export default function BuyScreen() {
   const params = useLocalSearchParams();
   const { netProceeds, useSaleFundsForPurchase } = useProperty();
   
-  const [currentBid, setCurrentBid] = useState(500000);
-  const [currentBidText, setCurrentBidText] = useState('500,000');
+  const [currentBid, setCurrentBid] = useState(0);
+  const [currentBidText, setCurrentBidText] = useState('');
   const [bidIncrement, setBidIncrement] = useState(5000);
   const [customIncrement, setCustomIncrement] = useState('1000');
   const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
@@ -84,7 +87,7 @@ export default function BuyScreen() {
   const [showCustomLabelInput, setShowCustomLabelInput] = useState<string | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    isPrimaryResidence: true,
+    isPrimaryResidence: false,
     isFirstHomeBuyer: false,
     isConcessionCardHolder: false,
   });
@@ -111,10 +114,10 @@ export default function BuyScreen() {
     console.log('Loading all numeric values from localStorage');
     
     // Load current bid
-    const savedBid = await loadNumericValue(BUY_KEYS.CURRENT_BID);
+    const savedBid = await loadNumericValue(BUY_KEYS.CURRENT_OFFER);
     if (savedBid !== null) {
       const numValue = parseFloat(savedBid);
-      if (!isNaN(numValue)) {
+      if (!isNaN(numValue) && numValue > 0) {
         setCurrentBid(numValue);
         setCurrentBidText(numValue.toLocaleString('en-US'));
       }
@@ -140,8 +143,8 @@ export default function BuyScreen() {
   const loadAllToggleValues = async () => {
     console.log('Loading all toggle values from localStorage');
     
-    // Load Primary Residence toggle
-    const primaryResidence = await loadToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, true);
+    // Load Primary Residence toggle - default to FALSE
+    const primaryResidence = await loadToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, false);
     
     // Load First Home Owner toggle
     const firstHomeOwner = await loadToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
@@ -305,17 +308,19 @@ export default function BuyScreen() {
       const formatted = numValue.toLocaleString('en-US');
       setCurrentBidText(formatted);
       // Persist to localStorage immediately
-      saveNumericValue(BUY_KEYS.CURRENT_BID, cleanText);
+      saveNumericValue(BUY_KEYS.CURRENT_OFFER, cleanText);
     } else if (cleanText === '') {
       setCurrentBid(0);
       setCurrentBidText('');
-      saveNumericValue(BUY_KEYS.CURRENT_BID, '0');
+      saveNumericValue(BUY_KEYS.CURRENT_OFFER, '0');
     }
   };
 
   const handleBidBlur = () => {
-    const formatted = currentBid.toLocaleString('en-US');
-    setCurrentBidText(formatted);
+    if (currentBid > 0) {
+      const formatted = currentBid.toLocaleString('en-US');
+      setCurrentBidText(formatted);
+    }
     Keyboard.dismiss();
   };
 
@@ -345,20 +350,24 @@ export default function BuyScreen() {
   const totalCosts = stampDuty + landTransferFee + mortgageReg + additionalCosts;
   const totalRequired = currentBid + totalCosts;
   
-  const cashNeeded = totalRequired - loanAmount;
   const totalSavings = savingsItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
   const balanceOfSaleFunds = useSaleFundsForPurchase ? netProceeds : 0;
   const totalAvailableFunds = totalSavings + balanceOfSaleFunds;
+  
+  // Calculate cash needed - deduct balance of sale funds and ensure it's never negative
+  const cashNeededRaw = totalRequired - loanAmount - balanceOfSaleFunds;
+  const cashNeeded = Math.max(0, cashNeededRaw);
+  
   const savingsRemaining = totalAvailableFunds - cashNeeded;
 
   const adjustBid = (amount: number) => {
     console.log('User adjusted bid by:', amount);
     const newBid = Math.max(0, currentBid + amount);
     setCurrentBid(newBid);
-    const formatted = newBid.toLocaleString('en-US');
+    const formatted = newBid > 0 ? newBid.toLocaleString('en-US') : '';
     setCurrentBidText(formatted);
     // Persist to localStorage immediately
-    saveNumericValue(BUY_KEYS.CURRENT_BID, newBid.toString());
+    saveNumericValue(BUY_KEYS.CURRENT_OFFER, newBid.toString());
   };
 
   const getAvailableCostOptions = () => {
@@ -509,6 +518,8 @@ export default function BuyScreen() {
     saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
   };
 
+  const dynamicFontSize = getDynamicFontSize(currentBid);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
@@ -581,15 +592,16 @@ export default function BuyScreen() {
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Offer</Text>
           <View style={styles.bidInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: getDynamicFontSize(currentBid) }]}>$</Text>
+            <Text style={[styles.dollarSign, { fontSize: dynamicFontSize }]}>$</Text>
             <TextInput
-              style={[styles.bidInput, { fontSize: getDynamicFontSize(currentBid) }]}
+              style={[styles.bidInput, { fontSize: dynamicFontSize }]}
               value={currentBidText}
               onChangeText={handleBidTextChange}
               onBlur={handleBidBlur}
               keyboardType="numeric"
               selectTextOnFocus
               textAlign="center"
+              placeholder=""
             />
           </View>
           
@@ -1167,7 +1179,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    maxWidth: '80%',
+    minWidth: '60%',
+    maxWidth: '90%',
     alignSelf: 'center',
   },
   dollarSign: {
@@ -1179,8 +1192,8 @@ const styles = StyleSheet.create({
   bidInput: {
     fontWeight: '800',
     color: '#424242',
-    minWidth: 120,
-    maxWidth: 220,
+    minWidth: 80,
+    flex: 1,
     padding: 0,
     margin: 0,
     fontFamily: 'CourierPrime_700Bold',

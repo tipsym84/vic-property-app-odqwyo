@@ -50,8 +50,8 @@ export default function HomeScreen() {
         >
           <View style={[styles.featureIcon, { backgroundColor: '#f5f5f5' }]}>
             <IconSymbol 
-              ios_icon_name="dollarsign.circle" 
-              android_material_icon_name="attach-money" 
+              ios_icon_name="hammer.fill" 
+              android_material_icon_name="gavel" 
               size={32} 
               color="#424242"
             />

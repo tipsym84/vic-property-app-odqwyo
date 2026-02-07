@@ -28,8 +28,8 @@ export default function SellScreen() {
   const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
   const [useSaleFunds, setUseSaleFunds] = useState(false);
   
-  const [salePrice, setSalePrice] = useState(500000);
-  const [salePriceText, setSalePriceText] = useState('500,000');
+  const [salePrice, setSalePrice] = useState(0);
+  const [salePriceText, setSalePriceText] = useState('');
   const [priceIncrement, setPriceIncrement] = useState(5000);
   const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
   const [customIncrement, setCustomIncrement] = useState('1000');
@@ -72,7 +72,7 @@ export default function SellScreen() {
     const savedPrice = await loadNumericValue(SELL_KEYS.SALE_PRICE);
     if (savedPrice !== null) {
       const numValue = parseFloat(savedPrice);
-      if (!isNaN(numValue)) {
+      if (!isNaN(numValue) && numValue > 0) {
         setSalePrice(numValue);
         setSalePriceText(numValue.toLocaleString('en-US'));
       }
@@ -275,8 +275,10 @@ export default function SellScreen() {
   };
 
   const handlePriceBlur = () => {
-    const formatted = salePrice.toLocaleString('en-US');
-    setSalePriceText(formatted);
+    if (salePrice > 0) {
+      const formatted = salePrice.toLocaleString('en-US');
+      setSalePriceText(formatted);
+    }
     Keyboard.dismiss();
   };
 
@@ -284,7 +286,7 @@ export default function SellScreen() {
     console.log('User adjusted price by:', amount);
     const newPrice = Math.max(0, salePrice + amount);
     setSalePrice(newPrice);
-    const formatted = newPrice.toLocaleString('en-US');
+    const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
     setSalePriceText(formatted);
     // Persist to localStorage immediately
     saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
@@ -317,13 +319,18 @@ export default function SellScreen() {
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
   
   const getDynamicFontSize = useCallback((value: number): number => {
-    const digits = Math.floor(Math.log10(Math.abs(value))) + 1;
+    const valueStr = Math.abs(value).toString().replace(/[^0-9]/g, '');
+    const digits = valueStr.length;
+    
     if (digits <= 5) return 48;
     if (digits === 6) return 42;
     if (digits === 7) return 36;
     if (digits === 8) return 32;
-    return 28;
+    if (digits === 9) return 28;
+    return 24;
   }, []);
+  
+  const dynamicFontSize = getDynamicFontSize(salePrice);
   
   // Memoized calculations - only recalculate when dependencies change
   const price = salePrice;
@@ -561,15 +568,16 @@ export default function SellScreen() {
           <View style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
             <View style={styles.priceInputContainer}>
-              <Text style={[styles.dollarSign, { fontSize: getDynamicFontSize(salePrice) }]}>$</Text>
+              <Text style={[styles.dollarSign, { fontSize: dynamicFontSize }]}>$</Text>
               <TextInput
-                style={[styles.priceInput, { fontSize: getDynamicFontSize(salePrice) }]}
+                style={[styles.priceInput, { fontSize: dynamicFontSize }]}
                 value={salePriceText}
                 onChangeText={handlePriceTextChange}
                 onBlur={handlePriceBlur}
                 keyboardType="numeric"
                 selectTextOnFocus
                 textAlign="center"
+                placeholder=""
               />
             </View>
             
@@ -1151,7 +1159,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    maxWidth: '80%',
+    minWidth: '60%',
+    maxWidth: '90%',
     alignSelf: 'center',
   },
   dollarSign: {
@@ -1163,8 +1172,8 @@ const styles = StyleSheet.create({
   priceInput: {
     fontWeight: '800',
     color: '#424242',
-    minWidth: 120,
-    maxWidth: 220,
+    minWidth: 80,
+    flex: 1,
     padding: 0,
     margin: 0,
     fontFamily: 'CourierPrime_700Bold',
