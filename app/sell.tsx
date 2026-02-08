@@ -318,19 +318,8 @@ export default function SellScreen() {
 
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
   
-  const getDynamicFontSize = useCallback((value: number): number => {
-    const valueStr = Math.abs(value).toString().replace(/[^0-9]/g, '');
-    const digits = valueStr.length;
-    
-    if (digits <= 5) return 48;
-    if (digits === 6) return 42;
-    if (digits === 7) return 36;
-    if (digits === 8) return 32;
-    if (digits === 9) return 28;
-    return 24;
-  }, []);
-  
-  const dynamicFontSize = getDynamicFontSize(salePrice);
+  // FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
+  const fixedFontSize = 48 * 0.7;
   
   // Memoized calculations - only recalculate when dependencies change
   const price = salePrice;
@@ -573,9 +562,9 @@ export default function SellScreen() {
           <View style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
             <View style={styles.priceInputContainer}>
-              <Text style={[styles.dollarSign, { fontSize: dynamicFontSize }]}>$</Text>
+              <Text style={[styles.dollarSign, { fontSize: fixedFontSize }]}>$</Text>
               <TextInput
-                style={[styles.priceInput, { fontSize: dynamicFontSize }]}
+                style={[styles.priceInput, { fontSize: fixedFontSize }]}
                 value={salePriceText}
                 onChangeText={handlePriceTextChange}
                 onBlur={handlePriceBlur}
@@ -1164,7 +1153,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    width: '75%',
+    width: '90%',
     alignSelf: 'center',
   },
   dollarSign: {

@@ -524,7 +524,8 @@ export default function BuyScreen() {
     saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
   };
 
-  const dynamicFontSize = getDynamicFontSize(currentBid);
+  // FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
+  const fixedFontSize = 48 * 0.7;
 
   return (
     <View style={styles.container}>
@@ -598,9 +599,9 @@ export default function BuyScreen() {
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Offer</Text>
           <View style={styles.bidInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: dynamicFontSize }]}>$</Text>
+            <Text style={[styles.dollarSign, { fontSize: fixedFontSize }]}>$</Text>
             <TextInput
-              style={[styles.bidInput, { fontSize: dynamicFontSize }]}
+              style={[styles.bidInput, { fontSize: fixedFontSize }]}
               value={currentBidText}
               onChangeText={handleBidTextChange}
               onBlur={handleBidBlur}
@@ -1185,7 +1186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    width: '75%',
+    width: '90%',
     alignSelf: 'center',
   },
   dollarSign: {
