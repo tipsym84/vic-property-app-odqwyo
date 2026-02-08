@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Fixed keys for Buy screen numeric inputs
 export const BUY_KEYS = {
-  CURRENT_BID: 'buy_currentBid',
+  CURRENT_OFFER: 'buy_currentOffer',
   BID_INCREMENT: 'buy_bidIncrement',
   CUSTOM_INCREMENT: 'buy_customIncrement',
   LOAN_AMOUNT: 'buy_loanAmount_',  // Append loan ID
@@ -36,10 +36,17 @@ export const SELL_KEYS = {
 
 /**
  * Save a numeric value to localStorage with a fixed key
- * @param key - Fixed key for the value
+ * CRITICAL: Only saves if key is a valid, non-null string
+ * @param key - Fixed key for the value (must not be null or undefined)
  * @param value - Numeric value to save (as string)
  */
-export const saveNumericValue = async (key: string, value: string): Promise<void> => {
+export const saveNumericValue = async (key: string | null | undefined, value: string): Promise<void> => {
+  // CRITICAL: Do not attempt to write to localStorage if key is null or undefined
+  if (!key || key === null || key === undefined) {
+    console.warn('saveNumericValue: Attempted to save with null/undefined key. Skipping save operation.');
+    return;
+  }
+  
   try {
     await AsyncStorage.setItem(key, value);
     console.log(`Saved to localStorage: ${key} = ${value}`);
@@ -50,10 +57,17 @@ export const saveNumericValue = async (key: string, value: string): Promise<void
 
 /**
  * Load a numeric value from localStorage
- * @param key - Fixed key for the value
+ * CRITICAL: Only loads if key is a valid, non-null string
+ * @param key - Fixed key for the value (must not be null or undefined)
  * @returns The stored value or null if not found
  */
-export const loadNumericValue = async (key: string): Promise<string | null> => {
+export const loadNumericValue = async (key: string | null | undefined): Promise<string | null> => {
+  // CRITICAL: Do not attempt to read from localStorage if key is null or undefined
+  if (!key || key === null || key === undefined) {
+    console.warn('loadNumericValue: Attempted to load with null/undefined key. Returning null.');
+    return null;
+  }
+  
   try {
     const value = await AsyncStorage.getItem(key);
     if (value !== null) {
@@ -68,10 +82,17 @@ export const loadNumericValue = async (key: string): Promise<string | null> => {
 
 /**
  * Save a boolean toggle value to localStorage with a fixed key
- * @param key - Fixed key for the toggle
+ * CRITICAL: Only saves if key is a valid, non-null string
+ * @param key - Fixed key for the toggle (must not be null or undefined)
  * @param value - Boolean value to save
  */
-export const saveToggleValue = async (key: string, value: boolean): Promise<void> => {
+export const saveToggleValue = async (key: string | null | undefined, value: boolean): Promise<void> => {
+  // CRITICAL: Do not attempt to write to localStorage if key is null or undefined
+  if (!key || key === null || key === undefined) {
+    console.warn('saveToggleValue: Attempted to save with null/undefined key. Skipping save operation.');
+    return;
+  }
+  
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
     console.log(`Saved toggle to localStorage: ${key} = ${value}`);
@@ -82,11 +103,18 @@ export const saveToggleValue = async (key: string, value: boolean): Promise<void
 
 /**
  * Load a boolean toggle value from localStorage
- * @param key - Fixed key for the toggle
+ * CRITICAL: Only loads if key is a valid, non-null string
+ * @param key - Fixed key for the toggle (must not be null or undefined)
  * @param defaultValue - Default value if not found (default: false)
  * @returns The stored boolean value or default
  */
-export const loadToggleValue = async (key: string, defaultValue: boolean = false): Promise<boolean> => {
+export const loadToggleValue = async (key: string | null | undefined, defaultValue: boolean = false): Promise<boolean> => {
+  // CRITICAL: Do not attempt to read from localStorage if key is null or undefined
+  if (!key || key === null || key === undefined) {
+    console.warn('loadToggleValue: Attempted to load with null/undefined key. Returning default value.');
+    return defaultValue;
+  }
+  
   try {
     const value = await AsyncStorage.getItem(key);
     if (value !== null) {
@@ -107,6 +135,11 @@ export const loadToggleValue = async (key: string, defaultValue: boolean = false
  * @param keyPrefix - Prefix to identify screen keys (e.g., 'buy_' or 'sell_')
  */
 export const clearScreenValues = async (keyPrefix: string): Promise<void> => {
+  if (!keyPrefix || keyPrefix === null || keyPrefix === undefined) {
+    console.warn('clearScreenValues: Invalid key prefix provided. Skipping clear operation.');
+    return;
+  }
+  
   try {
     const allKeys = await AsyncStorage.getAllKeys();
     const keysToRemove = allKeys.filter(key => key.startsWith(keyPrefix));

@@ -68,7 +68,7 @@ export default function SellScreen() {
   const loadAllNumericValues = async () => {
     console.log('Loading all numeric values from localStorage');
     
-    // Load sale price
+    // Load sale price - using fixed key SELL_KEYS.SALE_PRICE
     const savedPrice = await loadNumericValue(SELL_KEYS.SALE_PRICE);
     if (savedPrice !== null) {
       const numValue = parseFloat(savedPrice);
@@ -200,7 +200,7 @@ export default function SellScreen() {
     console.log('User toggled Mortgage to be repaid to:', value);
     setMortgageToBeRepaid(value);
     
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
   };
 
@@ -208,7 +208,7 @@ export default function SellScreen() {
     console.log('User toggled Mortgage repaid in full to:', value);
     setMortgageRepaidInFull(value);
     
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
   };
 
@@ -216,7 +216,7 @@ export default function SellScreen() {
     console.log('User toggled Use sale funds to:', value);
     setUseSaleFunds(value);
     
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
@@ -265,7 +265,7 @@ export default function SellScreen() {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
-      // Persist to localStorage immediately
+      // Persist to localStorage immediately using fixed key SELL_KEYS.SALE_PRICE
       saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
@@ -288,7 +288,7 @@ export default function SellScreen() {
     setSalePrice(newPrice);
     const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
     setSalePriceText(formatted);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
   };
 
@@ -298,7 +298,7 @@ export default function SellScreen() {
     if (!isNaN(value) && value > 0) {
       setPriceIncrement(value);
       setShowCustomIncrementInput(false);
-      // Persist to localStorage
+      // Persist to localStorage using fixed keys
       saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
       saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -413,13 +413,16 @@ export default function SellScreen() {
     
     setCommissionTiers(updatedTiers);
     
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed keys with ID
     if (field === 'fromPrice') {
-      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, value);
+      const storageKey = SELL_KEYS.COMMISSION_FROM + id;
+      saveNumericValue(storageKey, value);
     } else if (field === 'toPrice') {
-      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, value);
+      const storageKey = SELL_KEYS.COMMISSION_TO + id;
+      saveNumericValue(storageKey, value);
     } else if (field === 'rate') {
-      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, value);
+      const storageKey = SELL_KEYS.COMMISSION_RATE + id;
+      saveNumericValue(storageKey, value);
     }
   };
 
@@ -428,7 +431,7 @@ export default function SellScreen() {
       const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
       setCommissionTiers(updatedTiers);
       
-      // Clear from localStorage
+      // Clear from localStorage using fixed keys
       saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
@@ -453,8 +456,9 @@ export default function SellScreen() {
     setDebtItems(debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately
-    saveNumericValue(SELL_KEYS.DEBT_AMOUNT + id, amount);
+    // Persist to localStorage immediately using fixed key with ID
+    const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
+    saveNumericValue(storageKey, amount);
   };
 
   const removeDebtItem = (id: string) => {
@@ -463,8 +467,9 @@ export default function SellScreen() {
       const updatedItems = debtItems.filter(item => item.id !== id);
       setDebtItems(updatedItems);
       
-      // Clear from localStorage
-      saveNumericValue(SELL_KEYS.DEBT_AMOUNT + id, '');
+      // Clear from localStorage using fixed key
+      const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
+      saveNumericValue(storageKey, '');
       
       // Save structure change
       saveSellScreenData();
@@ -478,28 +483,28 @@ export default function SellScreen() {
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setPriceIncrement(value);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
   };
 
   const handleAdvertisingChange = (text: string) => {
     console.log('User changed advertising costs:', text);
     setAdvertisingCosts(text);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
   };
 
   const handleLegalFeesChange = (text: string) => {
     console.log('User changed legal fees:', text);
     setLegalFees(text);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
     console.log('User changed partial repayment amount:', text);
     setPartialRepaymentAmount(text);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
 
@@ -1159,8 +1164,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    minWidth: '60%',
-    maxWidth: '90%',
+    width: '75%',
     alignSelf: 'center',
   },
   dollarSign: {
@@ -1172,7 +1176,6 @@ const styles = StyleSheet.create({
   priceInput: {
     fontWeight: '800',
     color: '#424242',
-    minWidth: 80,
     flex: 1,
     padding: 0,
     margin: 0,

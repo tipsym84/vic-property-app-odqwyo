@@ -113,7 +113,7 @@ export default function BuyScreen() {
   const loadAllNumericValues = async () => {
     console.log('Loading all numeric values from localStorage');
     
-    // Load current bid
+    // Load current bid - using fixed key BUY_KEYS.CURRENT_OFFER
     const savedBid = await loadNumericValue(BUY_KEYS.CURRENT_OFFER);
     if (savedBid !== null) {
       const numValue = parseFloat(savedBid);
@@ -247,7 +247,7 @@ export default function BuyScreen() {
     };
     setUserProfile(newProfile);
     
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     await saveToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, value);
     if (!value) {
       // If turning off primary residence, also turn off dependent toggles
@@ -265,7 +265,7 @@ export default function BuyScreen() {
       };
       setUserProfile(newProfile);
       
-      // Persist to localStorage immediately
+      // Persist to localStorage immediately using fixed key
       await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, value);
     }
   };
@@ -279,7 +279,7 @@ export default function BuyScreen() {
       };
       setUserProfile(newProfile);
       
-      // Persist to localStorage immediately
+      // Persist to localStorage immediately using fixed key
       await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, value);
       
       if (value) {
@@ -307,7 +307,7 @@ export default function BuyScreen() {
       setCurrentBid(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setCurrentBidText(formatted);
-      // Persist to localStorage immediately
+      // Persist to localStorage immediately using fixed key BUY_KEYS.CURRENT_OFFER
       saveNumericValue(BUY_KEYS.CURRENT_OFFER, cleanText);
     } else if (cleanText === '') {
       setCurrentBid(0);
@@ -330,7 +330,7 @@ export default function BuyScreen() {
     if (!isNaN(value) && value > 0) {
       setBidIncrement(value);
       setShowCustomIncrementInput(false);
-      // Persist to localStorage
+      // Persist to localStorage using fixed keys
       saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
       saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -366,7 +366,7 @@ export default function BuyScreen() {
     setCurrentBid(newBid);
     const formatted = newBid > 0 ? newBid.toLocaleString('en-US') : '';
     setCurrentBidText(formatted);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(BUY_KEYS.CURRENT_OFFER, newBid.toString());
   };
 
@@ -412,16 +412,18 @@ export default function BuyScreen() {
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately
-    saveNumericValue(BUY_KEYS.COST_AMOUNT + id, amount);
+    // Persist to localStorage immediately using fixed key with ID
+    const storageKey = BUY_KEYS.COST_AMOUNT + id;
+    saveNumericValue(storageKey, amount);
   };
 
   const removeCostItem = (id: string) => {
     setCostItems(costItems.filter(item => item.id !== id));
     if (showDropdown === id) setShowDropdown(null);
     if (showCustomLabelInput === id) setShowCustomLabelInput(null);
-    // Clear from localStorage
-    saveNumericValue(BUY_KEYS.COST_AMOUNT + id, '');
+    // Clear from localStorage using fixed key
+    const storageKey = BUY_KEYS.COST_AMOUNT + id;
+    saveNumericValue(storageKey, '');
   };
 
   const getCostItemDisplayLabel = (item: CostItem): string => {
@@ -463,8 +465,9 @@ export default function BuyScreen() {
       setSelectedLoanId(editingLoanId);
     }
     
-    // Persist loan amount to localStorage
-    saveNumericValue(BUY_KEYS.LOAN_AMOUNT + editingLoanId, tempLoanAmount);
+    // Persist loan amount to localStorage using fixed key with ID
+    const storageKey = BUY_KEYS.LOAN_AMOUNT + editingLoanId;
+    saveNumericValue(storageKey, tempLoanAmount);
     
     setShowLoanModal(false);
     setEditingLoanId(null);
@@ -478,8 +481,9 @@ export default function BuyScreen() {
       if (selectedLoanId === id) {
         setSelectedLoanId(loans[0].id);
       }
-      // Clear from localStorage
-      saveNumericValue(BUY_KEYS.LOAN_AMOUNT + id, '');
+      // Clear from localStorage using fixed key
+      const storageKey = BUY_KEYS.LOAN_AMOUNT + id;
+      saveNumericValue(storageKey, '');
     }
   };
 
@@ -493,15 +497,17 @@ export default function BuyScreen() {
     setSavingsItems(savingsItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately
-    saveNumericValue(BUY_KEYS.SAVINGS_AMOUNT + id, amount);
+    // Persist to localStorage immediately using fixed key with ID
+    const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
+    saveNumericValue(storageKey, amount);
   };
 
   const removeSavingsItem = (id: string) => {
     if (savingsItems.length > 1) {
       setSavingsItems(savingsItems.filter(item => item.id !== id));
-      // Clear from localStorage
-      saveNumericValue(BUY_KEYS.SAVINGS_AMOUNT + id, '');
+      // Clear from localStorage using fixed key
+      const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
+      saveNumericValue(storageKey, '');
     }
   };
 
@@ -514,7 +520,7 @@ export default function BuyScreen() {
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setBidIncrement(value);
-    // Persist to localStorage immediately
+    // Persist to localStorage immediately using fixed key
     saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
   };
 
@@ -1179,8 +1185,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 20,
-    minWidth: '60%',
-    maxWidth: '90%',
+    width: '75%',
     alignSelf: 'center',
   },
   dollarSign: {
@@ -1192,7 +1197,6 @@ const styles = StyleSheet.create({
   bidInput: {
     fontWeight: '800',
     color: '#424242',
-    minWidth: 80,
     flex: 1,
     padding: 0,
     margin: 0,
