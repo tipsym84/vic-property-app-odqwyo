@@ -162,10 +162,9 @@ export default function BuyScreen() {
     setUserProfile(newProfile);
   };
 
-  // Save data whenever it changes
-  useEffect(() => {
-    saveBuyScreenData();
-  }, [currentBid, bidIncrement, loans, selectedLoanId, savingsItems, costItems, viewMode]);
+  // ❌ REMOVED: useEffect that persisted data based on state dependencies
+  // This was causing scroll lag by triggering AsyncStorage writes on every re-render
+  // Persistence now happens explicitly in user action handlers
 
   const loadBuyScreenData = async () => {
     try {
@@ -219,21 +218,20 @@ export default function BuyScreen() {
     }
   };
 
-  const saveBuyScreenData = async () => {
+  // Save structure data only (not individual field values - those are saved in handlers)
+  const saveBuyScreenStructure = async () => {
     try {
       const data = {
-        currentBid,
-        bidIncrement,
-        loans,
+        loans: loans.map(l => ({ id: l.id, name: l.name, amount: '' })), // Structure only
         selectedLoanId,
-        savingsItems,
-        costItems,
+        savingsItems: savingsItems.map(s => ({ id: s.id, amount: '' })), // Structure only
+        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: '' })), // Structure only
         viewMode,
       };
       await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
-      console.log('Saved Buy screen data');
+      console.log('Saved Buy screen structure');
     } catch (error) {
-      console.error('Error saving Buy screen data:', error);
+      console.error('Error saving Buy screen structure:', error);
     }
   };
 
@@ -247,7 +245,7 @@ export default function BuyScreen() {
     };
     setUserProfile(newProfile);
     
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, value);
     if (!value) {
       // If turning off primary residence, also turn off dependent toggles
@@ -265,7 +263,7 @@ export default function BuyScreen() {
       };
       setUserProfile(newProfile);
       
-      // Persist to localStorage immediately using fixed key
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
       await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, value);
     }
   };
@@ -279,7 +277,7 @@ export default function BuyScreen() {
       };
       setUserProfile(newProfile);
       
-      // Persist to localStorage immediately using fixed key
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
       await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, value);
       
       if (value) {
@@ -307,7 +305,7 @@ export default function BuyScreen() {
       setCurrentBid(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setCurrentBidText(formatted);
-      // Persist to localStorage immediately using fixed key BUY_KEYS.CURRENT_OFFER
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
       saveNumericValue(BUY_KEYS.CURRENT_OFFER, cleanText);
     } else if (cleanText === '') {
       setCurrentBid(0);
@@ -330,7 +328,7 @@ export default function BuyScreen() {
     if (!isNaN(value) && value > 0) {
       setBidIncrement(value);
       setShowCustomIncrementInput(false);
-      // Persist to localStorage using fixed keys
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
       saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
       saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -366,7 +364,7 @@ export default function BuyScreen() {
     setCurrentBid(newBid);
     const formatted = newBid > 0 ? newBid.toLocaleString('en-US') : '';
     setCurrentBidText(formatted);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(BUY_KEYS.CURRENT_OFFER, newBid.toString());
   };
 
@@ -385,7 +383,10 @@ export default function BuyScreen() {
     if (availableOptions.length > 0) {
       const newId = (costItems.length + 1).toString();
       const defaultType = availableOptions[0];
-      setCostItems([...costItems, { id: newId, type: defaultType, customLabel: '', amount: '' }]);
+      const updatedItems = [...costItems, { id: newId, type: defaultType, customLabel: '', amount: '' }];
+      setCostItems(updatedItems);
+      // Save structure change
+      saveBuyScreenStructure();
     }
   };
 
@@ -399,12 +400,16 @@ export default function BuyScreen() {
     } else {
       setShowCustomLabelInput(null);
     }
+    // Save structure change
+    saveBuyScreenStructure();
   };
 
   const updateCostItemCustomLabel = (id: string, customLabel: string) => {
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, customLabel } : item
     ));
+    // Save structure change
+    saveBuyScreenStructure();
   };
 
   const updateCostItemAmount = (id: string, amount: string) => {
@@ -412,18 +417,21 @@ export default function BuyScreen() {
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately using fixed key with ID
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     const storageKey = BUY_KEYS.COST_AMOUNT + id;
     saveNumericValue(storageKey, amount);
   };
 
   const removeCostItem = (id: string) => {
-    setCostItems(costItems.filter(item => item.id !== id));
+    const updatedItems = costItems.filter(item => item.id !== id);
+    setCostItems(updatedItems);
     if (showDropdown === id) setShowDropdown(null);
     if (showCustomLabelInput === id) setShowCustomLabelInput(null);
     // Clear from localStorage using fixed key
     const storageKey = BUY_KEYS.COST_AMOUNT + id;
     saveNumericValue(storageKey, '');
+    // Save structure change
+    saveBuyScreenStructure();
   };
 
   const getCostItemDisplayLabel = (item: CostItem): string => {
@@ -465,9 +473,12 @@ export default function BuyScreen() {
       setSelectedLoanId(editingLoanId);
     }
     
-    // Persist loan amount to localStorage using fixed key with ID
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     const storageKey = BUY_KEYS.LOAN_AMOUNT + editingLoanId;
     saveNumericValue(storageKey, tempLoanAmount);
+    
+    // Save structure change
+    saveBuyScreenStructure();
     
     setShowLoanModal(false);
     setEditingLoanId(null);
@@ -477,19 +488,25 @@ export default function BuyScreen() {
 
   const removeLoan = (id: string) => {
     if (loans.length > 1) {
-      setLoans(loans.filter(item => item.id !== id));
+      const updatedLoans = loans.filter(item => item.id !== id);
+      setLoans(updatedLoans);
       if (selectedLoanId === id) {
         setSelectedLoanId(loans[0].id);
       }
       // Clear from localStorage using fixed key
       const storageKey = BUY_KEYS.LOAN_AMOUNT + id;
       saveNumericValue(storageKey, '');
+      // Save structure change
+      saveBuyScreenStructure();
     }
   };
 
   const addSavingsItem = () => {
     const newId = (savingsItems.length + 1).toString();
-    setSavingsItems([...savingsItems, { id: newId, amount: '' }]);
+    const updatedItems = [...savingsItems, { id: newId, amount: '' }];
+    setSavingsItems(updatedItems);
+    // Save structure change
+    saveBuyScreenStructure();
   };
 
   const updateSavingsItem = (id: string, amount: string) => {
@@ -497,31 +514,42 @@ export default function BuyScreen() {
     setSavingsItems(savingsItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately using fixed key with ID
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
     saveNumericValue(storageKey, amount);
   };
 
   const removeSavingsItem = (id: string) => {
     if (savingsItems.length > 1) {
-      setSavingsItems(savingsItems.filter(item => item.id !== id));
+      const updatedItems = savingsItems.filter(item => item.id !== id);
+      setSavingsItems(updatedItems);
       // Clear from localStorage using fixed key
       const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
       saveNumericValue(storageKey, '');
+      // Save structure change
+      saveBuyScreenStructure();
     }
   };
 
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
 
   const handleScroll = () => {
+    // ✅ LIGHTWEIGHT OPERATION: Only dismisses keyboard, no persistence logic
     Keyboard.dismiss();
   };
 
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setBidIncrement(value);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
+  };
+
+  const handleViewModeChange = (mode: 'total' | 'cash' | 'remaining') => {
+    console.log('User changed view mode to:', mode);
+    setViewMode(mode);
+    // Save structure change
+    saveBuyScreenStructure();
   };
 
   // FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
@@ -697,6 +725,7 @@ export default function BuyScreen() {
                 value={customIncrement}
                 onChangeText={(text) => {
                   setCustomIncrement(text);
+                  // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
                   saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, text);
                 }}
                 onBlur={() => Keyboard.dismiss()}
@@ -765,7 +794,11 @@ export default function BuyScreen() {
                       styles.loanOption,
                       selectedLoanId === loan.id && styles.loanOptionActive
                     ]}
-                    onPress={() => setSelectedLoanId(loan.id)}
+                    onPress={() => {
+                      setSelectedLoanId(loan.id);
+                      // Save structure change
+                      saveBuyScreenStructure();
+                    }}
                   >
                     <Text style={[
                       styles.loanOptionText,
@@ -1016,7 +1049,7 @@ export default function BuyScreen() {
           <View style={styles.viewModeButtons}>
             <TouchableOpacity
               style={[styles.viewModeButton, viewMode === 'total' && styles.viewModeButtonActive]}
-              onPress={() => setViewMode('total')}
+              onPress={() => handleViewModeChange('total')}
             >
               <Text style={[styles.viewModeButtonText, viewMode === 'total' && styles.viewModeButtonTextActive]}>
                 Total Required
@@ -1024,7 +1057,7 @@ export default function BuyScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewModeButton, viewMode === 'cash' && styles.viewModeButtonActive]}
-              onPress={() => setViewMode('cash')}
+              onPress={() => handleViewModeChange('cash')}
             >
               <Text style={[styles.viewModeButtonText, viewMode === 'cash' && styles.viewModeButtonTextActive]}>
                 Cash Needed
@@ -1032,7 +1065,7 @@ export default function BuyScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewModeButton, viewMode === 'remaining' && styles.viewModeButtonActive]}
-              onPress={() => setViewMode('remaining')}
+              onPress={() => handleViewModeChange('remaining')}
             >
               <Text style={[styles.viewModeButtonText, viewMode === 'remaining' && styles.viewModeButtonTextActive]}>
                 Savings Remaining

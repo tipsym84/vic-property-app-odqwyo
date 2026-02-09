@@ -176,9 +176,8 @@ export default function SellScreen() {
     }
   };
 
-  // Save complex data structures (debt items, commission tiers) only
-  // Individual field values are saved in their respective handlers
-  const saveSellScreenData = useCallback(async () => {
+  // Save structure data only (not individual field values - those are saved in handlers)
+  const saveSellScreenStructure = useCallback(async () => {
     try {
       const data = {
         debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only, amounts saved separately
@@ -200,7 +199,7 @@ export default function SellScreen() {
     console.log('User toggled Mortgage to be repaid to:', value);
     setMortgageToBeRepaid(value);
     
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
   };
 
@@ -208,7 +207,7 @@ export default function SellScreen() {
     console.log('User toggled Mortgage repaid in full to:', value);
     setMortgageRepaidInFull(value);
     
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
   };
 
@@ -216,7 +215,7 @@ export default function SellScreen() {
     console.log('User toggled Use sale funds to:', value);
     setUseSaleFunds(value);
     
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
@@ -265,7 +264,7 @@ export default function SellScreen() {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
-      // Persist to localStorage immediately using fixed key SELL_KEYS.SALE_PRICE
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
       saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
@@ -288,7 +287,7 @@ export default function SellScreen() {
     setSalePrice(newPrice);
     const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
     setSalePriceText(formatted);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
   };
 
@@ -298,7 +297,7 @@ export default function SellScreen() {
     if (!isNaN(value) && value > 0) {
       setPriceIncrement(value);
       setShowCustomIncrementInput(false);
-      // Persist to localStorage using fixed keys
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
       saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
       saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -306,7 +305,7 @@ export default function SellScreen() {
     }
   };
 
-  // Keyboard dismiss on scroll - this is lightweight and doesn't cause lag
+  // ✅ LIGHTWEIGHT OPERATION: Keyboard dismiss on scroll - no persistence logic
   const handleScroll = useCallback(() => {
     Keyboard.dismiss();
   }, []);
@@ -383,7 +382,7 @@ export default function SellScreen() {
     setCommissionTiers(updatedTiers);
     
     // Save structure change
-    saveSellScreenData();
+    saveSellScreenStructure();
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
@@ -402,7 +401,7 @@ export default function SellScreen() {
     
     setCommissionTiers(updatedTiers);
     
-    // Persist to localStorage immediately using fixed keys with ID
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     if (field === 'fromPrice') {
       const storageKey = SELL_KEYS.COMMISSION_FROM + id;
       saveNumericValue(storageKey, value);
@@ -426,7 +425,7 @@ export default function SellScreen() {
       saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
       
       // Save structure change
-      saveSellScreenData();
+      saveSellScreenStructure();
     }
   };
 
@@ -437,7 +436,7 @@ export default function SellScreen() {
     setDebtItems(updatedItems);
     
     // Save structure change
-    saveSellScreenData();
+    saveSellScreenStructure();
   };
 
   const updateDebtItem = (id: string, amount: string) => {
@@ -445,7 +444,7 @@ export default function SellScreen() {
     setDebtItems(debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // Persist to localStorage immediately using fixed key with ID
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
     saveNumericValue(storageKey, amount);
   };
@@ -461,7 +460,7 @@ export default function SellScreen() {
       saveNumericValue(storageKey, '');
       
       // Save structure change
-      saveSellScreenData();
+      saveSellScreenStructure();
     }
   };
 
@@ -472,28 +471,28 @@ export default function SellScreen() {
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setPriceIncrement(value);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
   };
 
   const handleAdvertisingChange = (text: string) => {
     console.log('User changed advertising costs:', text);
     setAdvertisingCosts(text);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
   };
 
   const handleLegalFeesChange = (text: string) => {
     console.log('User changed legal fees:', text);
     setLegalFees(text);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
     console.log('User changed partial repayment amount:', text);
     setPartialRepaymentAmount(text);
-    // Persist to localStorage immediately using fixed key
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
 
@@ -660,6 +659,7 @@ export default function SellScreen() {
                   value={customIncrement}
                   onChangeText={(text) => {
                     setCustomIncrement(text);
+                    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
                     saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
                   }}
                   onBlur={() => Keyboard.dismiss()}
