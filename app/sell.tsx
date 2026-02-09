@@ -305,11 +305,6 @@ export default function SellScreen() {
     }
   };
 
-  // ✅ LIGHTWEIGHT OPERATION: Keyboard dismiss on scroll - no persistence logic
-  const handleScroll = useCallback(() => {
-    Keyboard.dismiss();
-  }, []);
-
   const handleTapOutside = useCallback(() => {
     console.log('User tapped outside - dismissing keyboard');
     Keyboard.dismiss();
@@ -516,8 +511,6 @@ export default function SellScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
         >
           <View style={commonStyles.card}>
