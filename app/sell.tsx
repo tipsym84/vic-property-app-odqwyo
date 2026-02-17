@@ -312,7 +312,7 @@ export default function SellScreen() {
 
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
   
-  // FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
+  // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
   
   // Memoized calculations - only recalculate when dependencies change
@@ -512,6 +512,7 @@ export default function SellScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <View style={commonStyles.card}>
             <View style={styles.toggleSection}>

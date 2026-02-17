@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch, TouchableWithoutFeedback } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
@@ -29,18 +29,6 @@ interface SavingsItem {
 
 const formatMoney = (value: number): string => {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-const getDynamicFontSize = (value: number): number => {
-  const valueStr = Math.abs(value).toString().replace(/[^0-9]/g, '');
-  const digits = valueStr.length;
-  
-  if (digits <= 5) return 48;
-  if (digits === 6) return 42;
-  if (digits === 7) return 36;
-  if (digits === 8) return 32;
-  if (digits === 9) return 28;
-  return 24;
 };
 
 const ALL_COST_OPTIONS = [
@@ -161,10 +149,6 @@ export default function BuyScreen() {
     console.log('Loaded toggle values:', newProfile);
     setUserProfile(newProfile);
   };
-
-  // ❌ REMOVED: useEffect that persisted data based on state dependencies
-  // This was causing scroll lag by triggering AsyncStorage writes on every re-render
-  // Persistence now happens explicitly in user action handlers
 
   const loadBuyScreenData = async () => {
     try {
@@ -356,7 +340,15 @@ export default function BuyScreen() {
   const cashNeededRaw = totalRequired - loanAmount - balanceOfSaleFunds;
   const cashNeeded = Math.max(0, cashNeededRaw);
   
-  const savingsRemaining = totalAvailableFunds - cashNeeded;
+  // ✅ REVISED CALCULATION: Savings Remaining = (Loan Pre-Approval + Balance of Sale Funds + Your Savings/Other Funds) - Total Cost Breakdown
+  const savingsRemaining = useMemo(() => {
+    const totalLoanPreApproval = loanAmount;
+    const totalBalanceOfSaleFunds = balanceOfSaleFunds;
+    const totalSavingsOtherFunds = totalSavings;
+    const totalCostBreakdown = totalRequired;
+
+    return totalLoanPreApproval + totalBalanceOfSaleFunds + totalSavingsOtherFunds - totalCostBreakdown;
+  }, [loanAmount, balanceOfSaleFunds, totalSavings, totalRequired]);
 
   const adjustBid = (amount: number) => {
     console.log('User adjusted bid by:', amount);
@@ -533,11 +525,6 @@ export default function BuyScreen() {
 
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
 
-  const handleScroll = () => {
-    // ✅ LIGHTWEIGHT OPERATION: Only dismisses keyboard, no persistence logic
-    Keyboard.dismiss();
-  };
-
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setBidIncrement(value);
@@ -552,7 +539,7 @@ export default function BuyScreen() {
     saveBuyScreenStructure();
   };
 
-  // FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
+  // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
 
   return (
@@ -574,8 +561,6 @@ export default function BuyScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
         <View style={commonStyles.card}>
@@ -1087,8 +1072,6 @@ export default function BuyScreen() {
               <ScrollView 
                 contentContainerStyle={styles.modalScrollContent}
                 keyboardShouldPersistTaps="handled"
-                onScroll={() => Keyboard.dismiss()}
-                scrollEventThrottle={16}
               >
                 <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Loan Details</Text>
