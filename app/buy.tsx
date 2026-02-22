@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Keyboard, Modal, Switch, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -562,6 +562,7 @@ export default function BuyScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <View style={commonStyles.card}>
           <View style={styles.toggleSection}>
@@ -1199,11 +1200,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#9e9e9e',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     marginBottom: 20,
     width: '90%',
     alignSelf: 'center',
+    height: 60,
   },
   dollarSign: {
     fontWeight: '800',
@@ -1214,10 +1216,15 @@ const styles = StyleSheet.create({
   bidInput: {
     fontWeight: '800',
     color: '#424242',
-    flex: 1,
+    width: '100%',
+    height: 60,
+    flexShrink: 0,
     padding: 0,
     margin: 0,
     fontFamily: 'CourierPrime_700Bold',
+    paddingLeft: 8,
+    paddingRight: 8,
+    includeFontPadding: false,
   },
   bidControls: {
     flexDirection: 'row',
