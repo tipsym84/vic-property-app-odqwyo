@@ -621,7 +621,7 @@ export default function BuyScreen() {
               onBlur={handleBidBlur}
               keyboardType="numeric"
               selectTextOnFocus
-              textAlign="center"
+              textAlign="right"
               placeholder=""
             />
           </View>
@@ -1219,10 +1219,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 60,
     flexShrink: 0,
+    overflow: 'visible',
+    textAlign: 'right',
     padding: 0,
     margin: 0,
     fontFamily: 'CourierPrime_700Bold',
-    paddingLeft: 8,
+    paddingLeft: 20,
     paddingRight: 8,
     includeFontPadding: false,
   },
