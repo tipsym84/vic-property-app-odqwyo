@@ -613,14 +613,14 @@ export default function BuyScreen() {
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Offer</Text>
           <View style={styles.bidInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: 0 }]}>$</Text>
+            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
             <TextInput
               style={[
                 styles.bidInput,
                 {
                   fontSize: fixedFontSize,
                   fontFamily: 'CourierPrime_700Bold',
-                  letterSpacing: 0,
+                  letterSpacing: -0.5,
                   paddingLeft: 20,
                   paddingRight: 8,
                   height: 60,

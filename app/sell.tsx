@@ -555,14 +555,14 @@ export default function SellScreen() {
           <View style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
             <View style={styles.priceInputContainer}>
-              <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: 0 }]}>$</Text>
+              <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
               <TextInput
                 style={[
                   styles.priceInput,
                   {
                     fontSize: fixedFontSize,
                     fontFamily: 'CourierPrime_700Bold',
-                    letterSpacing: 0,
+                    letterSpacing: -0.5,
                     paddingLeft: 20,
                     paddingRight: 8,
                     height: 60,
