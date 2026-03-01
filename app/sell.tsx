@@ -555,15 +555,27 @@ export default function SellScreen() {
           <View style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
             <View style={styles.priceInputContainer}>
-              <Text style={[styles.dollarSign, { fontSize: fixedFontSize }]}>$</Text>
+              <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: 0 }]}>$</Text>
               <TextInput
-                style={[styles.priceInput, { fontSize: fixedFontSize }]}
+                style={[
+                  styles.priceInput,
+                  {
+                    fontSize: fixedFontSize,
+                    fontFamily: 'CourierPrime_700Bold',
+                    letterSpacing: 0,
+                    paddingLeft: 20,
+                    paddingRight: 8,
+                    height: 60,
+                    flexShrink: 0,
+                    overflow: 'visible',
+                    textAlign: 'right',
+                  },
+                ]}
                 value={salePriceText}
                 onChangeText={handlePriceTextChange}
                 onBlur={handlePriceBlur}
                 keyboardType="numeric"
                 selectTextOnFocus
-                textAlign="right"
                 placeholder=""
               />
             </View>
@@ -1161,16 +1173,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#424242',
     width: '100%',
-    height: 60,
-    flexShrink: 0,
-    overflow: 'visible',
-    textAlign: 'right',
     padding: 0,
     margin: 0,
-    fontFamily: 'CourierPrime_700Bold',
-    paddingLeft: 20,
-    paddingRight: 8,
-    includeFontPadding: false,
   },
   priceControls: {
     flexDirection: 'row',

@@ -613,15 +613,27 @@ export default function BuyScreen() {
         <View style={[commonStyles.card, styles.bidCard]}>
           <Text style={styles.bidLabel}>Current Offer</Text>
           <View style={styles.bidInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: fixedFontSize }]}>$</Text>
+            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: 0 }]}>$</Text>
             <TextInput
-              style={[styles.bidInput, { fontSize: fixedFontSize }]}
+              style={[
+                styles.bidInput,
+                {
+                  fontSize: fixedFontSize,
+                  fontFamily: 'CourierPrime_700Bold',
+                  letterSpacing: 0,
+                  paddingLeft: 20,
+                  paddingRight: 8,
+                  height: 60,
+                  flexShrink: 0,
+                  overflow: 'visible',
+                  textAlign: 'right',
+                },
+              ]}
               value={currentBidText}
               onChangeText={handleBidTextChange}
               onBlur={handleBidBlur}
               keyboardType="numeric"
               selectTextOnFocus
-              textAlign="right"
               placeholder=""
             />
           </View>
@@ -1217,16 +1229,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#424242',
     width: '100%',
-    height: 60,
-    flexShrink: 0,
-    overflow: 'visible',
-    textAlign: 'right',
     padding: 0,
     margin: 0,
-    fontFamily: 'CourierPrime_700Bold',
-    paddingLeft: 20,
-    paddingRight: 8,
-    includeFontPadding: false,
   },
   bidControls: {
     flexDirection: 'row',
