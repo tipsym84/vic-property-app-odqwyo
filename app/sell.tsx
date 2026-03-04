@@ -48,19 +48,19 @@ export default function SellScreen() {
 
   // Load data on mount
   useEffect(() => {
-    console.log('Sell screen mounted - loading persisted values');
-    loadAllNumericValues();
-    loadAllToggleValues();
-    loadSellScreenData();
+    // console.log('Sell screen mounted - loading persisted values');
+    // loadAllNumericValues();
+    // loadAllToggleValues();
+    // loadSellScreenData();
   }, []);
 
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('Sell screen focused - reloading persisted values');
-      loadAllNumericValues();
-      loadAllToggleValues();
-      loadSellScreenData();
+      // console.log('Sell screen focused - reloading persisted values');
+      // loadAllNumericValues();
+      // loadAllToggleValues();
+      // loadSellScreenData();
     }, [])
   );
 
@@ -355,14 +355,14 @@ export default function SellScreen() {
 
   // Update context only when net proceeds changes
   useEffect(() => {
-    console.log('Sell screen: Net proceeds updated to', netProceedsValue);
-    setNetProceeds(netProceedsValue);
+    // console.log('Sell screen: Net proceeds updated to', netProceedsValue);
+    // setNetProceeds(netProceedsValue);
   }, [netProceedsValue, setNetProceeds]);
 
   // Update context only when use sale funds toggle changes
   useEffect(() => {
-    console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
-    setUseSaleFundsForPurchase(useSaleFunds);
+    // console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
+    // setUseSaleFundsForPurchase(useSaleFunds);
   }, [useSaleFunds, setUseSaleFundsForPurchase]);
 
   const addCommissionTier = () => {
