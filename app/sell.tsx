@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
@@ -46,21 +46,35 @@ export default function SellScreen() {
     { id: '1', fromPrice: '', toPrice: '', rate: '' },
   ]);
 
+  // 🚨 PERFORMANCE FIX: Debounce timers to prevent expensive operations during scroll/blur
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const calculationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🚨 PERFORMANCE FIX: Debounced save function (500ms delay)
+  const debouncedSave = useCallback((key: string, value: string) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      saveNumericValue(key, value);
+    }, 500);
+  }, []);
+
   // Load data on mount
   useEffect(() => {
-    // console.log('Sell screen mounted - loading persisted values');
-    // loadAllNumericValues();
-    // loadAllToggleValues();
-    // loadSellScreenData();
+    console.log('Sell screen mounted - loading persisted values');
+    loadAllNumericValues();
+    loadAllToggleValues();
+    loadSellScreenData();
   }, []);
 
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // console.log('Sell screen focused - reloading persisted values');
-      // loadAllNumericValues();
-      // loadAllToggleValues();
-      // loadSellScreenData();
+      console.log('Sell screen focused - reloading persisted values');
+      loadAllNumericValues();
+      loadAllToggleValues();
+      loadSellScreenData();
     }, [])
   );
 
@@ -264,21 +278,23 @@ export default function SellScreen() {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-      saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
+      // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
+      debouncedSave(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
       setSalePriceText('');
-      saveNumericValue(SELL_KEYS.SALE_PRICE, '0');
+      debouncedSave(SELL_KEYS.SALE_PRICE, '0');
     }
   };
 
+  // 🚨 PERFORMANCE FIX: Remove all expensive logic from onBlur
   const handlePriceBlur = () => {
+    // Only format the display text, no calculations or saves
     if (salePrice > 0) {
       const formatted = salePrice.toLocaleString('en-US');
       setSalePriceText(formatted);
     }
-    Keyboard.dismiss();
+    // Keyboard dismissal is handled by ScrollView's keyboardDismissMode="on-drag"
   };
 
   const adjustPrice = (amount: number) => {
@@ -315,41 +331,61 @@ export default function SellScreen() {
   // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
   
-  // 🚨 DISABLED useMemo - replaced with direct values
-  const price = salePrice;
-  const commission = calculateCommission(price);
-  const advertising = parseFloat(advertisingCosts) || 0;
-  const legal = parseFloat(legalFees) || 0;
+  // 🚨 PERFORMANCE FIX: Memoize expensive calculations to prevent recalculation during scroll
+  const price = useMemo(() => salePrice, [salePrice]);
+  const commission = useMemo(() => calculateCommission(price), [price, calculateCommission]);
+  const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
+  const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
   
-  // Calculate total debt from all debt items - DISABLED useMemo
-  const totalDebt = debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  // Calculate total debt from all debt items
+  const totalDebt = useMemo(() => 
+    debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
+    [debtItems]
+  );
   
-  // Determine how much debt to deduct - DISABLED useMemo
-  let debtToDeduct = 0;
-  if (mortgageToBeRepaid) {
-    if (mortgageRepaidInFull) {
-      debtToDeduct = totalDebt;
-    } else {
-      debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
+  // Determine how much debt to deduct
+  const debtToDeduct = useMemo(() => {
+    let amount = 0;
+    if (mortgageToBeRepaid) {
+      if (mortgageRepaidInFull) {
+        amount = totalDebt;
+      } else {
+        amount = parseFloat(partialRepaymentAmount) || 0;
+      }
     }
-  }
+    return amount;
+  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
   
-  const dischargeFee = (mortgageToBeRepaid && debtToDeduct > 0) ? 350 : 0;
+  const dischargeFee = useMemo(() => 
+    (mortgageToBeRepaid && debtToDeduct > 0) ? 350 : 0,
+    [mortgageToBeRepaid, debtToDeduct]
+  );
 
-  const totalCosts = commission + advertising + legal + dischargeFee;
+  const totalCosts = useMemo(() => 
+    commission + advertising + legal + dischargeFee,
+    [commission, advertising, legal, dischargeFee]
+  );
   
-  const netProceedsValue = price - totalCosts - debtToDeduct;
+  const netProceedsValue = useMemo(() => 
+    price - totalCosts - debtToDeduct,
+    [price, totalCosts, debtToDeduct]
+  );
 
-  // Update context only when net proceeds changes
+  // 🚨 PERFORMANCE FIX: Debounce context updates to prevent blocking during scroll
   useEffect(() => {
-    // console.log('Sell screen: Net proceeds updated to', netProceedsValue);
-    // setNetProceeds(netProceedsValue);
+    if (calculationTimerRef.current) {
+      clearTimeout(calculationTimerRef.current);
+    }
+    calculationTimerRef.current = setTimeout(() => {
+      console.log('Sell screen: Net proceeds updated to', netProceedsValue);
+      setNetProceeds(netProceedsValue);
+    }, 300);
   }, [netProceedsValue, setNetProceeds]);
 
   // Update context only when use sale funds toggle changes
   useEffect(() => {
-    // console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
-    // setUseSaleFundsForPurchase(useSaleFunds);
+    console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
+    setUseSaleFundsForPurchase(useSaleFunds);
   }, [useSaleFunds, setUseSaleFundsForPurchase]);
 
   const addCommissionTier = () => {
@@ -383,16 +419,16 @@ export default function SellScreen() {
     
     setCommissionTiers(updatedTiers);
     
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
     if (field === 'fromPrice') {
       const storageKey = SELL_KEYS.COMMISSION_FROM + id;
-      saveNumericValue(storageKey, value);
+      debouncedSave(storageKey, value);
     } else if (field === 'toPrice') {
       const storageKey = SELL_KEYS.COMMISSION_TO + id;
-      saveNumericValue(storageKey, value);
+      debouncedSave(storageKey, value);
     } else if (field === 'rate') {
       const storageKey = SELL_KEYS.COMMISSION_RATE + id;
-      saveNumericValue(storageKey, value);
+      debouncedSave(storageKey, value);
     }
   };
 
@@ -426,9 +462,9 @@ export default function SellScreen() {
     setDebtItems(debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
     const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
-    saveNumericValue(storageKey, amount);
+    debouncedSave(storageKey, amount);
   };
 
   const removeDebtItem = (id: string) => {
@@ -460,23 +496,29 @@ export default function SellScreen() {
   const handleAdvertisingChange = (text: string) => {
     console.log('User changed advertising costs:', text);
     setAdvertisingCosts(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
+    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
+    debouncedSave(SELL_KEYS.ADVERTISING_COSTS, text);
   };
 
   const handleLegalFeesChange = (text: string) => {
     console.log('User changed legal fees:', text);
     setLegalFees(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
+    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
+    debouncedSave(SELL_KEYS.LEGAL_FEES, text);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
     console.log('User changed partial repayment amount:', text);
     setPartialRepaymentAmount(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
+    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
+    debouncedSave(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
+
+  // 🚨 PERFORMANCE FIX: Generic blur handler that does NOT trigger calculations or saves
+  const handleGenericBlur = useCallback(() => {
+    // Keyboard dismissal is handled by ScrollView's keyboardDismissMode="on-drag"
+    // No formatting, no calculations, no saves - all handled by debounced functions
+  }, []);
 
   return (
     <TouchableWithoutFeedback onPress={handleTapOutside}>
@@ -652,10 +694,10 @@ export default function SellScreen() {
                   value={customIncrement}
                   onChangeText={(text) => {
                     setCustomIncrement(text);
-                    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-                    saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
+                    // 🚨 PERFORMANCE FIX: Debounce save
+                    debouncedSave(SELL_KEYS.CUSTOM_INCREMENT, text);
                   }}
-                  onBlur={() => Keyboard.dismiss()}
+                  onBlur={handleGenericBlur}
                 />
                 <TouchableOpacity 
                   style={styles.customIncrementButton}
@@ -708,7 +750,7 @@ export default function SellScreen() {
                           keyboardType="numeric"
                           value={tier.fromPrice}
                           onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
-                          onBlur={() => Keyboard.dismiss()}
+                          onBlur={handleGenericBlur}
                           adjustsFontSizeToFit
                           numberOfLines={1}
                           minimumFontScale={0.5}
@@ -723,7 +765,7 @@ export default function SellScreen() {
                           keyboardType="numeric"
                           value={tier.toPrice}
                           onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
-                          onBlur={() => Keyboard.dismiss()}
+                          onBlur={handleGenericBlur}
                           adjustsFontSizeToFit
                           numberOfLines={1}
                           minimumFontScale={0.5}
@@ -740,7 +782,7 @@ export default function SellScreen() {
                       keyboardType="numeric"
                       value={tier.rate}
                       onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
-                      onBlur={() => Keyboard.dismiss()}
+                      onBlur={handleGenericBlur}
                       adjustsFontSizeToFit
                       numberOfLines={1}
                       minimumFontScale={0.5}
@@ -762,7 +804,7 @@ export default function SellScreen() {
                 keyboardType="numeric"
                 value={advertisingCosts}
                 onChangeText={handleAdvertisingChange}
-                onBlur={() => Keyboard.dismiss()}
+                onBlur={handleGenericBlur}
               />
             </View>
 
@@ -775,7 +817,7 @@ export default function SellScreen() {
                 keyboardType="numeric"
                 value={legalFees}
                 onChangeText={handleLegalFeesChange}
-                onBlur={() => Keyboard.dismiss()}
+                onBlur={handleGenericBlur}
               />
             </View>
 
@@ -802,7 +844,7 @@ export default function SellScreen() {
                     keyboardType="numeric"
                     value={item.amount}
                     onChangeText={(value) => updateDebtItem(item.id, value)}
-                    onBlur={() => Keyboard.dismiss()}
+                    onBlur={handleGenericBlur}
                   />
                 </View>
                 {debtItems.length > 1 && (
@@ -830,7 +872,7 @@ export default function SellScreen() {
                     keyboardType="numeric"
                     value={partialRepaymentAmount}
                     onChangeText={handlePartialRepaymentChange}
-                    onBlur={() => Keyboard.dismiss()}
+                    onBlur={handleGenericBlur}
                   />
                 </View>
               </>
