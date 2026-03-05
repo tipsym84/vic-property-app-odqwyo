@@ -315,43 +315,30 @@ export default function SellScreen() {
   // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
   
-  // Memoized calculations - only recalculate when dependencies change
+  // 🚨 DISABLED useMemo - replaced with direct values
   const price = salePrice;
-  const commission = useMemo(() => calculateCommission(price), [calculateCommission, price]);
-  const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
-  const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
+  const commission = calculateCommission(price);
+  const advertising = parseFloat(advertisingCosts) || 0;
+  const legal = parseFloat(legalFees) || 0;
   
-  // Calculate total debt from all debt items
-  const totalDebt = useMemo(() => 
-    debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
-    [debtItems]
-  );
+  // Calculate total debt from all debt items - DISABLED useMemo
+  const totalDebt = debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
   
-  // Determine how much debt to deduct
-  const debtToDeduct = useMemo(() => {
-    if (!mortgageToBeRepaid) {
-      return 0;
-    }
+  // Determine how much debt to deduct - DISABLED useMemo
+  let debtToDeduct = 0;
+  if (mortgageToBeRepaid) {
     if (mortgageRepaidInFull) {
-      return totalDebt;
+      debtToDeduct = totalDebt;
+    } else {
+      debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
     }
-    return parseFloat(partialRepaymentAmount) || 0;
-  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
+  }
   
-  const dischargeFee = useMemo(() => 
-    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
-    [mortgageToBeRepaid, debtToDeduct]
-  );
+  const dischargeFee = (mortgageToBeRepaid && debtToDeduct > 0) ? 350 : 0;
 
-  const totalCosts = useMemo(() => 
-    commission + advertising + legal + dischargeFee,
-    [commission, advertising, legal, dischargeFee]
-  );
+  const totalCosts = commission + advertising + legal + dischargeFee;
   
-  const netProceedsValue = useMemo(() => 
-    price - totalCosts - debtToDeduct,
-    [price, totalCosts, debtToDeduct]
-  );
+  const netProceedsValue = price - totalCosts - debtToDeduct;
 
   // Update context only when net proceeds changes
   useEffect(() => {
