@@ -20,6 +20,10 @@ interface DebtItem {
   amount: string;
 }
 
+// 🔍 DIAGNOSTIC MODE: KeyboardAvoidingView has been removed to test scroll freeze issue
+// This screen now uses a plain View container instead of KeyboardAvoidingView
+// to determine if keyboard avoidance layout recalculations are causing the post-scroll freeze on iOS
+
 export default function SellScreen() {
   const router = useRouter();
   const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
@@ -522,6 +526,7 @@ export default function SellScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={handleTapOutside}>
+      {/* 🔍 DIAGNOSTIC: Using plain View instead of KeyboardAvoidingView to test scroll freeze */}
       <View style={styles.container}>
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
