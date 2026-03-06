@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform, FlatList } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -20,9 +20,111 @@ interface DebtItem {
   amount: string;
 }
 
-// 🔍 DIAGNOSTIC MODE: KeyboardAvoidingView has been removed to test scroll freeze issue
-// This screen now uses a plain View container instead of KeyboardAvoidingView
-// to determine if keyboard avoidance layout recalculations are causing the post-scroll freeze on iOS
+// 🚀 PERFORMANCE: Memoized commission tier row component
+const CommissionTierRow = React.memo(({ 
+  tier, 
+  index, 
+  isOnlyTier, 
+  onUpdate, 
+  onRemove 
+}: { 
+  tier: CommissionTier; 
+  index: number; 
+  isOnlyTier: boolean;
+  onUpdate: (id: string, field: keyof CommissionTier, value: string) => void;
+  onRemove: (id: string) => void;
+}) => {
+  // Pre-calculate display values outside JSX
+  const tierNumber = index + 1;
+  const tierLabelText = `Tier ${tierNumber}`;
+  const fromPlaceholder = '0';
+  const toPlaceholder = '500000';
+  const ratePlaceholder = '2.5';
+
+  // 🚨 PERFORMANCE FIX: Generic blur handler that does NOT trigger calculations
+  const handleGenericBlur = useCallback(() => {
+    // No expensive operations on blur
+  }, []);
+
+  return (
+    <View style={styles.tierContainer}>
+      <View style={styles.tierHeader}>
+        <Text style={styles.tierLabel}>{tierLabelText}</Text>
+        {!isOnlyTier && (
+          <TouchableOpacity onPress={() => onRemove(tier.id)}>
+            <IconSymbol
+              ios_icon_name="trash"
+              android_material_icon_name="delete"
+              size={20}
+              color={colors.secondary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      <View style={styles.tierRow}>
+        {!isOnlyTier && (
+          <>
+            <View style={styles.tierInputContainer}>
+              <Text style={styles.tierInputLabel}>From ($)</Text>
+              <TextInput
+                style={[commonStyles.input, styles.tierInput]}
+                placeholder={fromPlaceholder}
+                keyboardType="numeric"
+                value={tier.fromPrice}
+                onChangeText={(value) => onUpdate(tier.id, 'fromPrice', value)}
+                onBlur={handleGenericBlur}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.5}
+              />
+            </View>
+            
+            <View style={styles.tierInputContainer}>
+              <Text style={styles.tierInputLabel}>To ($)</Text>
+              <TextInput
+                style={[commonStyles.input, styles.tierInput]}
+                placeholder={toPlaceholder}
+                keyboardType="numeric"
+                value={tier.toPrice}
+                onChangeText={(value) => onUpdate(tier.id, 'toPrice', value)}
+                onBlur={handleGenericBlur}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.5}
+              />
+            </View>
+          </>
+        )}
+        
+        <View style={[styles.tierInputContainer, isOnlyTier && { flex: 1 }]}>
+          <Text style={styles.tierInputLabel}>Rate (%)</Text>
+          <TextInput
+            style={[commonStyles.input, styles.tierInput]}
+            placeholder={ratePlaceholder}
+            keyboardType="numeric"
+            value={tier.rate}
+            onChangeText={(value) => onUpdate(tier.id, 'rate', value)}
+            onBlur={handleGenericBlur}
+            adjustsFontSizeToFit
+            numberOfLines={1}
+            minimumFontScale={0.5}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison function - only re-render if these specific props change
+  return (
+    prevProps.tier.id === nextProps.tier.id &&
+    prevProps.tier.fromPrice === nextProps.tier.fromPrice &&
+    prevProps.tier.toPrice === nextProps.tier.toPrice &&
+    prevProps.tier.rate === nextProps.tier.rate &&
+    prevProps.index === nextProps.index &&
+    prevProps.isOnlyTier === nextProps.isOnlyTier
+  );
+});
 
 export default function SellScreen() {
   const router = useRouter();
@@ -407,21 +509,28 @@ export default function SellScreen() {
     saveSellScreenStructure();
   };
 
-  const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
+  // 🚀 PERFORMANCE: Memoized update handler - only updates specific tier
+  const updateCommissionTier = useCallback((id: string, field: keyof CommissionTier, value: string) => {
     console.log('User updated commission tier', id, field, 'to', value);
-    const updatedTiers = commissionTiers.map(tier => 
-      tier.id === id ? { ...tier, [field]: value } : tier
-    );
     
-    // Auto-populate next tier's "from" when current tier's "to" is updated
-    if (field === 'toPrice' && value) {
-      const currentIndex = updatedTiers.findIndex(t => t.id === id);
-      if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
-        updatedTiers[currentIndex + 1].fromPrice = value;
+    setCommissionTiers(prevTiers => {
+      const updatedTiers = prevTiers.map(tier => 
+        tier.id === id ? { ...tier, [field]: value } : tier
+      );
+      
+      // Auto-populate next tier's "from" when current tier's "to" is updated
+      if (field === 'toPrice' && value) {
+        const currentIndex = updatedTiers.findIndex(t => t.id === id);
+        if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
+          updatedTiers[currentIndex + 1] = {
+            ...updatedTiers[currentIndex + 1],
+            fromPrice: value
+          };
+        }
       }
-    }
-    
-    setCommissionTiers(updatedTiers);
+      
+      return updatedTiers;
+    });
     
     // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
     if (field === 'fromPrice') {
@@ -434,9 +543,9 @@ export default function SellScreen() {
       const storageKey = SELL_KEYS.COMMISSION_RATE + id;
       debouncedSave(storageKey, value);
     }
-  };
+  }, [debouncedSave]);
 
-  const removeCommissionTier = (id: string) => {
+  const removeCommissionTier = useCallback((id: string) => {
     if (commissionTiers.length > 1) {
       const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
       setCommissionTiers(updatedTiers);
@@ -449,7 +558,7 @@ export default function SellScreen() {
       // Save structure change
       saveSellScreenStructure();
     }
-  };
+  }, [commissionTiers.length, saveSellScreenStructure]);
 
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
@@ -524,9 +633,38 @@ export default function SellScreen() {
     // No formatting, no calculations, no saves - all handled by debounced functions
   }, []);
 
+  // 🚀 PERFORMANCE: Pre-calculate isOnlyTier outside render
+  const isOnlyTier = commissionTiers.length === 1;
+
+  // 🚀 PERFORMANCE: FlatList render item callback
+  const renderCommissionTier = useCallback(({ item, index }: { item: CommissionTier; index: number }) => {
+    return (
+      <CommissionTierRow
+        tier={item}
+        index={index}
+        isOnlyTier={isOnlyTier}
+        onUpdate={updateCommissionTier}
+        onRemove={removeCommissionTier}
+      />
+    );
+  }, [isOnlyTier, updateCommissionTier, removeCommissionTier]);
+
+  // 🚀 PERFORMANCE: FlatList key extractor
+  const keyExtractor = useCallback((item: CommissionTier) => item.id, []);
+
+  // Pre-calculate formatted values outside JSX
+  const formattedPrice = formatMoney(price);
+  const formattedCommission = formatMoney(commission);
+  const formattedAdvertising = formatMoney(advertising);
+  const formattedLegal = formatMoney(legal);
+  const formattedDischargeFee = formatMoney(dischargeFee);
+  const formattedTotalCosts = formatMoney(totalCosts);
+  const formattedNetProceeds = formatMoney(netProceedsValue);
+  const formattedPriceIncrement = formatMoney(priceIncrement);
+  const netProceedsColor = netProceedsValue >= 0 ? '#424242' : '#f44336';
+
   return (
     <TouchableWithoutFeedback onPress={handleTapOutside}>
-      {/* 🔍 DIAGNOSTIC: Using plain View instead of KeyboardAvoidingView to test scroll freeze */}
       <View style={styles.container}>
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -629,7 +767,7 @@ export default function SellScreen() {
 
               <View style={styles.incrementContainer}>
                 <Text style={styles.incrementLabel}>Increment</Text>
-                <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
+                <Text style={styles.incrementValue}>${formattedPriceIncrement}</Text>
               </View>
 
               <TouchableOpacity 
@@ -727,76 +865,17 @@ export default function SellScreen() {
               </TouchableOpacity>
             </View>
 
-            {commissionTiers.map((tier, index) => (
-              <React.Fragment key={index}>
-              <View style={styles.tierContainer}>
-                <View style={styles.tierHeader}>
-                  <Text style={styles.tierLabel}>Tier {index + 1}</Text>
-                  {commissionTiers.length > 1 && (
-                    <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
-                      <IconSymbol
-                        ios_icon_name="trash"
-                        android_material_icon_name="delete"
-                        size={20}
-                        color={colors.secondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                
-                <View style={styles.tierRow}>
-                  {commissionTiers.length > 1 && (
-                    <>
-                      <View style={styles.tierInputContainer}>
-                        <Text style={styles.tierInputLabel}>From ($)</Text>
-                        <TextInput
-                          style={[commonStyles.input, styles.tierInput]}
-                          placeholder="0"
-                          keyboardType="numeric"
-                          value={tier.fromPrice}
-                          onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
-                          onBlur={handleGenericBlur}
-                          adjustsFontSizeToFit
-                          numberOfLines={1}
-                          minimumFontScale={0.5}
-                        />
-                      </View>
-                      
-                      <View style={styles.tierInputContainer}>
-                        <Text style={styles.tierInputLabel}>To ($)</Text>
-                        <TextInput
-                          style={[commonStyles.input, styles.tierInput]}
-                          placeholder="500000"
-                          keyboardType="numeric"
-                          value={tier.toPrice}
-                          onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
-                          onBlur={handleGenericBlur}
-                          adjustsFontSizeToFit
-                          numberOfLines={1}
-                          minimumFontScale={0.5}
-                        />
-                      </View>
-                    </>
-                  )}
-                  
-                  <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
-                    <Text style={styles.tierInputLabel}>Rate (%)</Text>
-                    <TextInput
-                      style={[commonStyles.input, styles.tierInput]}
-                      placeholder="2.5"
-                      keyboardType="numeric"
-                      value={tier.rate}
-                      onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
-                      onBlur={handleGenericBlur}
-                      adjustsFontSizeToFit
-                      numberOfLines={1}
-                      minimumFontScale={0.5}
-                    />
-                  </View>
-                </View>
-              </View>
-              </React.Fragment>
-            ))}
+            {/* 🚀 PERFORMANCE: FlatList with optimizations */}
+            <FlatList
+              data={commissionTiers}
+              renderItem={renderCommissionTier}
+              keyExtractor={keyExtractor}
+              scrollEnabled={false}
+              removeClippedSubviews={true}
+              initialNumToRender={5}
+              windowSize={5}
+              maxToRenderPerBatch={5}
+            />
           </View>
 
           <View style={commonStyles.card}>
@@ -889,30 +968,30 @@ export default function SellScreen() {
             
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Sale Price</Text>
-              <Text style={styles.resultValue}>${formatMoney(price)}</Text>
+              <Text style={styles.resultValue}>${formattedPrice}</Text>
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Agent Commission</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formattedCommission}</Text>
             </View>
 
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Advertising Costs</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formattedAdvertising}</Text>
             </View>
 
             <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Legal Fees</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formattedLegal}</Text>
             </View>
 
             {dischargeFee > 0 && (
               <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-                <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
+                <Text style={[styles.resultValue, styles.costValue]}>-${formattedDischargeFee}</Text>
               </View>
             )}
 
@@ -932,12 +1011,14 @@ export default function SellScreen() {
                 displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
               }
               
+              const formattedDisplayAmount = formatMoney(displayAmount);
+              
               return (
                 <React.Fragment key={index}>
                 {displayAmount > 0 && (
                   <View style={styles.resultRow}>
                     <Text style={styles.resultLabel}>{labelText}</Text>
-                    <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
+                    <Text style={[styles.resultValue, styles.costValue]}>-${formattedDisplayAmount}</Text>
                   </View>
                 )}
                 </React.Fragment>
@@ -948,12 +1029,12 @@ export default function SellScreen() {
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Costs</Text>
-              <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
+              <Text style={[styles.totalValue, styles.costValue]}>${formattedTotalCosts}</Text>
             </View>
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Net Proceeds</Text>
-              <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
+              <Text style={[styles.totalValue, { color: colors.success }]}>${formattedNetProceeds}</Text>
             </View>
           </View>
 
@@ -972,9 +1053,9 @@ export default function SellScreen() {
             <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
             <Text style={[
               styles.pinnedValue,
-              { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
+              { color: netProceedsColor }
             ]}>
-              ${formatMoney(netProceedsValue)}
+              ${formattedNetProceeds}
             </Text>
           </View>
         </View>
