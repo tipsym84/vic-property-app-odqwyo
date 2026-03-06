@@ -28,6 +28,9 @@ export default function SellScreen() {
   const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
   const [useSaleFunds, setUseSaleFunds] = useState(false);
   
+  // 🔬 DIAGNOSTIC: Toggle to enable/disable cross-screen data transfer
+  const [isTransferEnabled, setIsTransferEnabled] = useState(true);
+  
   const [salePrice, setSalePrice] = useState(0);
   const [salePriceText, setSalePriceText] = useState('');
   const [priceIncrement, setPriceIncrement] = useState(5000);
@@ -233,6 +236,12 @@ export default function SellScreen() {
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
+  // 🔬 DIAGNOSTIC: Toggle handler for cross-screen transfer
+  const handleTransferToggle = (value: boolean) => {
+    console.log('🔬 DIAGNOSTIC: Cross-screen transfer toggled to:', value);
+    setIsTransferEnabled(value);
+  };
+
   // Memoized commission calculation - only recalculates when dependencies change
   const calculateCommission = useCallback((price: number): number => {
     // If only one tier and no from/to values, apply rate to entire sale price
@@ -371,8 +380,13 @@ export default function SellScreen() {
     [price, totalCosts, debtToDeduct]
   );
 
-  // 🚨 PERFORMANCE FIX: Debounce context updates to prevent blocking during scroll
+  // 🔬 DIAGNOSTIC: Conditionally update context based on transfer toggle
   useEffect(() => {
+    if (!isTransferEnabled) {
+      console.log('🔬 DIAGNOSTIC: Cross-screen transfer DISABLED - skipping setNetProceeds');
+      return;
+    }
+    
     if (calculationTimerRef.current) {
       clearTimeout(calculationTimerRef.current);
     }
@@ -380,13 +394,18 @@ export default function SellScreen() {
       console.log('Sell screen: Net proceeds updated to', netProceedsValue);
       setNetProceeds(netProceedsValue);
     }, 300);
-  }, [netProceedsValue, setNetProceeds]);
+  }, [netProceedsValue, setNetProceeds, isTransferEnabled]);
 
-  // Update context only when use sale funds toggle changes
+  // 🔬 DIAGNOSTIC: Conditionally update context based on transfer toggle
   useEffect(() => {
+    if (!isTransferEnabled) {
+      console.log('🔬 DIAGNOSTIC: Cross-screen transfer DISABLED - skipping setUseSaleFundsForPurchase');
+      return;
+    }
+    
     console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
     setUseSaleFundsForPurchase(useSaleFunds);
-  }, [useSaleFunds, setUseSaleFundsForPurchase]);
+  }, [useSaleFunds, setUseSaleFundsForPurchase, isTransferEnabled]);
 
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
@@ -495,6 +514,24 @@ export default function SellScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
+          {/* 🔬 DIAGNOSTIC TOGGLE - Keep visible for testing */}
+          <View style={[commonStyles.card, styles.diagnosticCard]}>
+            <View style={styles.toggleRow}>
+              <Text style={[styles.toggleLabel, styles.diagnosticLabel]}>
+                🔬 Enable Cross-Screen Transfer (Diagnostic)
+              </Text>
+              <Switch
+                value={isTransferEnabled}
+                onValueChange={handleTransferToggle}
+                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                thumbColor={isTransferEnabled ? '#4caf50' : '#f4f3f4'}
+              />
+            </View>
+            <Text style={styles.diagnosticNote}>
+              Toggle OFF to disable data transfer to other screens for performance testing
+            </Text>
+          </View>
+
           <View style={commonStyles.card}>
             <View style={styles.toggleSection}>
               <View style={styles.toggleRow}>
@@ -884,6 +921,21 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 200,
   },
+  diagnosticCard: {
+    backgroundColor: '#fff3cd',
+    borderWidth: 2,
+    borderColor: '#ffc107',
+  },
+  diagnosticLabel: {
+    color: '#856404',
+  },
+  diagnosticNote: {
+    fontSize: 12,
+    color: '#856404',
+    marginTop: 8,
+    fontStyle: 'italic',
+    fontFamily: 'CourierPrime_400Regular',
+  },
   toggleSection: {
     gap: 12,
   },
@@ -1084,7 +1136,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#9e9e9e',
+    borderColor: '#9e9e e',
     minWidth: 60,
     alignItems: 'center',
   },
