@@ -20,112 +20,6 @@ interface DebtItem {
   amount: string;
 }
 
-// 🚀 PERFORMANCE: Memoized commission tier row component
-const CommissionTierRow = React.memo(({ 
-  tier, 
-  index, 
-  isOnlyTier, 
-  onUpdate, 
-  onRemove 
-}: { 
-  tier: CommissionTier; 
-  index: number; 
-  isOnlyTier: boolean;
-  onUpdate: (id: string, field: keyof CommissionTier, value: string) => void;
-  onRemove: (id: string) => void;
-}) => {
-  // Pre-calculate display values outside JSX
-  const tierNumber = index + 1;
-  const tierLabelText = `Tier ${tierNumber}`;
-  const fromPlaceholder = '0';
-  const toPlaceholder = '500000';
-  const ratePlaceholder = '2.5';
-
-  // 🚨 PERFORMANCE FIX: Generic blur handler that does NOT trigger calculations
-  const handleGenericBlur = useCallback(() => {
-    // No expensive operations on blur
-  }, []);
-
-  return (
-    <View style={styles.tierContainer}>
-      <View style={styles.tierHeader}>
-        <Text style={styles.tierLabel}>{tierLabelText}</Text>
-        {!isOnlyTier && (
-          <TouchableOpacity onPress={() => onRemove(tier.id)}>
-            <IconSymbol
-              ios_icon_name="trash"
-              android_material_icon_name="delete"
-              size={20}
-              color={colors.secondary}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      <View style={styles.tierRow}>
-        {!isOnlyTier && (
-          <>
-            <View style={styles.tierInputContainer}>
-              <Text style={styles.tierInputLabel}>From ($)</Text>
-              <TextInput
-                style={[commonStyles.input, styles.tierInput]}
-                placeholder={fromPlaceholder}
-                keyboardType="numeric"
-                value={tier.fromPrice}
-                onChangeText={(value) => onUpdate(tier.id, 'fromPrice', value)}
-                onBlur={handleGenericBlur}
-                adjustsFontSizeToFit
-                numberOfLines={1}
-                minimumFontScale={0.5}
-              />
-            </View>
-            
-            <View style={styles.tierInputContainer}>
-              <Text style={styles.tierInputLabel}>To ($)</Text>
-              <TextInput
-                style={[commonStyles.input, styles.tierInput]}
-                placeholder={toPlaceholder}
-                keyboardType="numeric"
-                value={tier.toPrice}
-                onChangeText={(value) => onUpdate(tier.id, 'toPrice', value)}
-                onBlur={handleGenericBlur}
-                adjustsFontSizeToFit
-                numberOfLines={1}
-                minimumFontScale={0.5}
-              />
-            </View>
-          </>
-        )}
-        
-        <View style={[styles.tierInputContainer, isOnlyTier && { flex: 1 }]}>
-          <Text style={styles.tierInputLabel}>Rate (%)</Text>
-          <TextInput
-            style={[commonStyles.input, styles.tierInput]}
-            placeholder={ratePlaceholder}
-            keyboardType="numeric"
-            value={tier.rate}
-            onChangeText={(value) => onUpdate(tier.id, 'rate', value)}
-            onBlur={handleGenericBlur}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-            minimumFontScale={0.5}
-          />
-        </View>
-      </View>
-    </View>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison function - only re-render if these specific props change
-  return (
-    prevProps.tier.id === nextProps.tier.id &&
-    prevProps.tier.fromPrice === nextProps.tier.fromPrice &&
-    prevProps.tier.toPrice === nextProps.tier.toPrice &&
-    prevProps.tier.rate === nextProps.tier.rate &&
-    prevProps.index === nextProps.index &&
-    prevProps.isOnlyTier === nextProps.isOnlyTier
-  );
-});
-
 export default function SellScreen() {
   const router = useRouter();
   const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
@@ -494,72 +388,6 @@ export default function SellScreen() {
     setUseSaleFundsForPurchase(useSaleFunds);
   }, [useSaleFunds, setUseSaleFundsForPurchase]);
 
-  const addCommissionTier = () => {
-    const newId = (commissionTiers.length + 1).toString();
-    const lastTier = commissionTiers[commissionTiers.length - 1];
-    const newFrom = lastTier && lastTier.toPrice ? lastTier.toPrice : '0';
-    
-    const updatedTiers = [
-      ...commissionTiers,
-      { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
-    ];
-    setCommissionTiers(updatedTiers);
-    
-    // Save structure change
-    saveSellScreenStructure();
-  };
-
-  // 🚀 PERFORMANCE: Memoized update handler - only updates specific tier
-  const updateCommissionTier = useCallback((id: string, field: keyof CommissionTier, value: string) => {
-    console.log('User updated commission tier', id, field, 'to', value);
-    
-    setCommissionTiers(prevTiers => {
-      const updatedTiers = prevTiers.map(tier => 
-        tier.id === id ? { ...tier, [field]: value } : tier
-      );
-      
-      // Auto-populate next tier's "from" when current tier's "to" is updated
-      if (field === 'toPrice' && value) {
-        const currentIndex = updatedTiers.findIndex(t => t.id === id);
-        if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
-          updatedTiers[currentIndex + 1] = {
-            ...updatedTiers[currentIndex + 1],
-            fromPrice: value
-          };
-        }
-      }
-      
-      return updatedTiers;
-    });
-    
-    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
-    if (field === 'fromPrice') {
-      const storageKey = SELL_KEYS.COMMISSION_FROM + id;
-      debouncedSave(storageKey, value);
-    } else if (field === 'toPrice') {
-      const storageKey = SELL_KEYS.COMMISSION_TO + id;
-      debouncedSave(storageKey, value);
-    } else if (field === 'rate') {
-      const storageKey = SELL_KEYS.COMMISSION_RATE + id;
-      debouncedSave(storageKey, value);
-    }
-  }, [debouncedSave]);
-
-  const removeCommissionTier = useCallback((id: string) => {
-    if (commissionTiers.length > 1) {
-      const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
-      setCommissionTiers(updatedTiers);
-      
-      // Clear from localStorage using fixed keys
-      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
-      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
-      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
-      
-      // Save structure change
-      saveSellScreenStructure();
-    }
-  }, [commissionTiers.length, saveSellScreenStructure]);
-
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
     console.log('Adding new debt item with id:', newId);
@@ -632,25 +460,6 @@ export default function SellScreen() {
     // Keyboard dismissal is handled by ScrollView's keyboardDismissMode="on-drag"
     // No formatting, no calculations, no saves - all handled by debounced functions
   }, []);
-
-  // 🚀 PERFORMANCE: Pre-calculate isOnlyTier outside render
-  const isOnlyTier = commissionTiers.length === 1;
-
-  // 🚀 PERFORMANCE: FlatList render item callback
-  const renderCommissionTier = useCallback(({ item, index }: { item: CommissionTier; index: number }) => {
-    return (
-      <CommissionTierRow
-        tier={item}
-        index={index}
-        isOnlyTier={isOnlyTier}
-        onUpdate={updateCommissionTier}
-        onRemove={removeCommissionTier}
-      />
-    );
-  }, [isOnlyTier, updateCommissionTier, removeCommissionTier]);
-
-  // 🚀 PERFORMANCE: FlatList key extractor
-  const keyExtractor = useCallback((item: CommissionTier) => item.id, []);
 
   // Pre-calculate formatted values outside JSX
   const formattedPrice = formatMoney(price);
@@ -852,31 +661,7 @@ export default function SellScreen() {
             )}
           </View>
 
-          <View style={commonStyles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={commonStyles.subtitle}>Agent Commission</Text>
-              <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
-                <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add-circle"
-                  size={24}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* 🚀 PERFORMANCE: FlatList with optimizations */}
-            <FlatList
-              data={commissionTiers}
-              renderItem={renderCommissionTier}
-              keyExtractor={keyExtractor}
-              scrollEnabled={false}
-              removeClippedSubviews={true}
-              initialNumToRender={5}
-              windowSize={5}
-              maxToRenderPerBatch={5}
-            />
-          </View>
+          {/* 🚨 COMMISSION TIER SECTION TEMPORARILY REMOVED FOR TESTING */}
 
           <View style={commonStyles.card}>
             <Text style={commonStyles.label}>Advertising Costs</Text>
@@ -1158,43 +943,6 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
-  },
-  tierContainer: {
-    backgroundColor: colors.highlight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  tierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tierLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tierInputContainer: {
-    flex: 1,
-  },
-  tierInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierInput: {
-    marginVertical: 0,
-    fontSize: 14,
-    paddingVertical: 8,
   },
   resultsCard: {
     backgroundColor: colors.highlight,
