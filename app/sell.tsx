@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
@@ -28,9 +28,6 @@ export default function SellScreen() {
   const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
   const [useSaleFunds, setUseSaleFunds] = useState(false);
   
-  // 🔬 DIAGNOSTIC: Toggle to enable/disable cross-screen data transfer
-  const [isTransferEnabled, setIsTransferEnabled] = useState(true);
-  
   const [salePrice, setSalePrice] = useState(0);
   const [salePriceText, setSalePriceText] = useState('');
   const [priceIncrement, setPriceIncrement] = useState(5000);
@@ -48,20 +45,6 @@ export default function SellScreen() {
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([
     { id: '1', fromPrice: '', toPrice: '', rate: '' },
   ]);
-
-  // 🚨 PERFORMANCE FIX: Debounce timers to prevent expensive operations during scroll/blur
-  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const calculationTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 🚨 PERFORMANCE FIX: Debounced save function (500ms delay)
-  const debouncedSave = useCallback((key: string, value: string) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = setTimeout(() => {
-      saveNumericValue(key, value);
-    }, 500);
-  }, []);
 
   // Load data on mount
   useEffect(() => {
@@ -236,12 +219,6 @@ export default function SellScreen() {
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
-  // 🔬 DIAGNOSTIC: Toggle handler for cross-screen transfer
-  const handleTransferToggle = (value: boolean) => {
-    console.log('🔬 DIAGNOSTIC: Cross-screen transfer toggled to:', value);
-    setIsTransferEnabled(value);
-  };
-
   // Memoized commission calculation - only recalculates when dependencies change
   const calculateCommission = useCallback((price: number): number => {
     // If only one tier and no from/to values, apply rate to entire sale price
@@ -287,23 +264,21 @@ export default function SellScreen() {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
-      // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
-      debouncedSave(SELL_KEYS.SALE_PRICE, cleanText);
+      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+      saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
       setSalePriceText('');
-      debouncedSave(SELL_KEYS.SALE_PRICE, '0');
+      saveNumericValue(SELL_KEYS.SALE_PRICE, '0');
     }
   };
 
-  // 🚨 PERFORMANCE FIX: Remove all expensive logic from onBlur
   const handlePriceBlur = () => {
-    // Only format the display text, no calculations or saves
     if (salePrice > 0) {
       const formatted = salePrice.toLocaleString('en-US');
       setSalePriceText(formatted);
     }
-    // Keyboard dismissal is handled by ScrollView's keyboardDismissMode="on-drag"
+    Keyboard.dismiss();
   };
 
   const adjustPrice = (amount: number) => {
@@ -340,9 +315,9 @@ export default function SellScreen() {
   // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
   
-  // 🚨 PERFORMANCE FIX: Memoize expensive calculations to prevent recalculation during scroll
-  const price = useMemo(() => salePrice, [salePrice]);
-  const commission = useMemo(() => calculateCommission(price), [price, calculateCommission]);
+  // Memoized calculations - only recalculate when dependencies change
+  const price = salePrice;
+  const commission = useMemo(() => calculateCommission(price), [calculateCommission, price]);
   const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
   const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
   
@@ -354,19 +329,17 @@ export default function SellScreen() {
   
   // Determine how much debt to deduct
   const debtToDeduct = useMemo(() => {
-    let amount = 0;
-    if (mortgageToBeRepaid) {
-      if (mortgageRepaidInFull) {
-        amount = totalDebt;
-      } else {
-        amount = parseFloat(partialRepaymentAmount) || 0;
-      }
+    if (!mortgageToBeRepaid) {
+      return 0;
     }
-    return amount;
+    if (mortgageRepaidInFull) {
+      return totalDebt;
+    }
+    return parseFloat(partialRepaymentAmount) || 0;
   }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
   
   const dischargeFee = useMemo(() => 
-    (mortgageToBeRepaid && debtToDeduct > 0) ? 350 : 0,
+    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
     [mortgageToBeRepaid, debtToDeduct]
   );
 
@@ -380,32 +353,76 @@ export default function SellScreen() {
     [price, totalCosts, debtToDeduct]
   );
 
-  // 🔬 DIAGNOSTIC: Conditionally update context based on transfer toggle
+  // Update context only when net proceeds changes
   useEffect(() => {
-    if (!isTransferEnabled) {
-      console.log('🔬 DIAGNOSTIC: Cross-screen transfer DISABLED - skipping setNetProceeds');
-      return;
-    }
-    
-    if (calculationTimerRef.current) {
-      clearTimeout(calculationTimerRef.current);
-    }
-    calculationTimerRef.current = setTimeout(() => {
-      console.log('Sell screen: Net proceeds updated to', netProceedsValue);
-      setNetProceeds(netProceedsValue);
-    }, 300);
-  }, [netProceedsValue, setNetProceeds, isTransferEnabled]);
+    console.log('Sell screen: Net proceeds updated to', netProceedsValue);
+    setNetProceeds(netProceedsValue);
+  }, [netProceedsValue, setNetProceeds]);
 
-  // 🔬 DIAGNOSTIC: Conditionally update context based on transfer toggle
+  // Update context only when use sale funds toggle changes
   useEffect(() => {
-    if (!isTransferEnabled) {
-      console.log('🔬 DIAGNOSTIC: Cross-screen transfer DISABLED - skipping setUseSaleFundsForPurchase');
-      return;
-    }
-    
     console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
     setUseSaleFundsForPurchase(useSaleFunds);
-  }, [useSaleFunds, setUseSaleFundsForPurchase, isTransferEnabled]);
+  }, [useSaleFunds, setUseSaleFundsForPurchase]);
+
+  const addCommissionTier = () => {
+    const newId = (commissionTiers.length + 1).toString();
+    const lastTier = commissionTiers[commissionTiers.length - 1];
+    const newFrom = lastTier && lastTier.toPrice ? lastTier.toPrice : '0';
+    
+    const updatedTiers = [
+      ...commissionTiers,
+      { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
+    ];
+    setCommissionTiers(updatedTiers);
+    
+    // Save structure change
+    saveSellScreenStructure();
+  };
+
+  const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
+    console.log('User updated commission tier', id, field, 'to', value);
+    const updatedTiers = commissionTiers.map(tier => 
+      tier.id === id ? { ...tier, [field]: value } : tier
+    );
+    
+    // Auto-populate next tier's "from" when current tier's "to" is updated
+    if (field === 'toPrice' && value) {
+      const currentIndex = updatedTiers.findIndex(t => t.id === id);
+      if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
+        updatedTiers[currentIndex + 1].fromPrice = value;
+      }
+    }
+    
+    setCommissionTiers(updatedTiers);
+    
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    if (field === 'fromPrice') {
+      const storageKey = SELL_KEYS.COMMISSION_FROM + id;
+      saveNumericValue(storageKey, value);
+    } else if (field === 'toPrice') {
+      const storageKey = SELL_KEYS.COMMISSION_TO + id;
+      saveNumericValue(storageKey, value);
+    } else if (field === 'rate') {
+      const storageKey = SELL_KEYS.COMMISSION_RATE + id;
+      saveNumericValue(storageKey, value);
+    }
+  };
+
+  const removeCommissionTier = (id: string) => {
+    if (commissionTiers.length > 1) {
+      const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
+      setCommissionTiers(updatedTiers);
+      
+      // Clear from localStorage using fixed keys
+      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
+      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
+      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
+      
+      // Save structure change
+      saveSellScreenStructure();
+    }
+  };
 
   const addDebtItem = () => {
     const newId = (debtItems.length + 1).toString();
@@ -422,9 +439,9 @@ export default function SellScreen() {
     setDebtItems(debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
     ));
-    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
-    debouncedSave(storageKey, amount);
+    saveNumericValue(storageKey, amount);
   };
 
   const removeDebtItem = (id: string) => {
@@ -456,45 +473,28 @@ export default function SellScreen() {
   const handleAdvertisingChange = (text: string) => {
     console.log('User changed advertising costs:', text);
     setAdvertisingCosts(text);
-    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
-    debouncedSave(SELL_KEYS.ADVERTISING_COSTS, text);
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
   };
 
   const handleLegalFeesChange = (text: string) => {
     console.log('User changed legal fees:', text);
     setLegalFees(text);
-    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
-    debouncedSave(SELL_KEYS.LEGAL_FEES, text);
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
     console.log('User changed partial repayment amount:', text);
     setPartialRepaymentAmount(text);
-    // 🚨 PERFORMANCE FIX: Debounce save to prevent blocking during typing
-    debouncedSave(SELL_KEYS.PARTIAL_REPAYMENT, text);
+    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
-
-  // 🚨 PERFORMANCE FIX: Generic blur handler that does NOT trigger calculations or saves
-  const handleGenericBlur = useCallback(() => {
-    // Keyboard dismissal is handled by ScrollView's keyboardDismissMode="on-drag"
-    // No formatting, no calculations, no saves - all handled by debounced functions
-  }, []);
-
-  // Pre-calculate formatted values outside JSX
-  const formattedPrice = formatMoney(price);
-  const formattedCommission = formatMoney(commission);
-  const formattedAdvertising = formatMoney(advertising);
-  const formattedLegal = formatMoney(legal);
-  const formattedDischargeFee = formatMoney(dischargeFee);
-  const formattedTotalCosts = formatMoney(totalCosts);
-  const formattedNetProceeds = formatMoney(netProceedsValue);
-  const formattedPriceIncrement = formatMoney(priceIncrement);
-  const netProceedsColor = netProceedsValue >= 0 ? '#424242' : '#f44336';
 
   return (
     <TouchableWithoutFeedback onPress={handleTapOutside}>
       <View style={styles.container}>
-        <View style={styles.headerBar} onStartShouldSetResponder={() => false}>
+        <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -513,29 +513,10 @@ export default function SellScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          nestedScrollEnabled={true}
         >
-          {/* 🔬 DIAGNOSTIC TOGGLE - Keep visible for testing */}
-          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.diagnosticCard]}>
-            <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
-              <Text style={[styles.toggleLabel, styles.diagnosticLabel]}>
-                🔬 Enable Cross-Screen Transfer (Diagnostic)
-              </Text>
-              <Switch
-                value={isTransferEnabled}
-                onValueChange={handleTransferToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={isTransferEnabled ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-            <Text style={styles.diagnosticNote}>
-              Toggle OFF to disable data transfer to other screens for performance testing
-            </Text>
-          </View>
-
-          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
-            <View onStartShouldSetResponder={() => false} style={styles.toggleSection}>
-              <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
+          <View style={commonStyles.card}>
+            <View style={styles.toggleSection}>
+              <View style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
                 <Switch
                   value={mortgageToBeRepaid}
@@ -547,7 +528,7 @@ export default function SellScreen() {
               
               {mortgageToBeRepaid && (
                 <>
-                  <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
+                  <View style={styles.toggleRow}>
                     <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
                     <Switch
                       value={mortgageRepaidInFull}
@@ -559,7 +540,7 @@ export default function SellScreen() {
                 </>
               )}
 
-              <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
+              <View style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
                 <Switch
                   value={useSaleFunds}
@@ -571,9 +552,9 @@ export default function SellScreen() {
             </View>
           </View>
 
-          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.priceCard]}>
+          <View style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
-            <View onStartShouldSetResponder={() => false} style={styles.priceInputContainer}>
+            <View style={styles.priceInputContainer}>
               <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
               <TextInput
                 style={[
@@ -599,7 +580,7 @@ export default function SellScreen() {
               />
             </View>
             
-            <View onStartShouldSetResponder={() => false} style={styles.priceControls}>
+            <View style={styles.priceControls}>
               <TouchableOpacity 
                 style={styles.priceButton}
                 onPress={() => adjustPrice(-priceIncrement)}
@@ -612,9 +593,9 @@ export default function SellScreen() {
                 />
               </TouchableOpacity>
 
-              <View onStartShouldSetResponder={() => false} style={styles.incrementContainer}>
+              <View style={styles.incrementContainer}>
                 <Text style={styles.incrementLabel}>Increment</Text>
-                <Text style={styles.incrementValue}>${formattedPriceIncrement}</Text>
+                <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
               </View>
 
               <TouchableOpacity 
@@ -630,13 +611,12 @@ export default function SellScreen() {
               </TouchableOpacity>
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.incrementSelector}>
+            <View style={styles.incrementSelector}>
               <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.incrementOptions}
-                nestedScrollEnabled={true}
               >
                 <TouchableOpacity
                   style={[
@@ -677,7 +657,7 @@ export default function SellScreen() {
             </View>
 
             {showCustomIncrementInput && (
-              <View onStartShouldSetResponder={() => false} style={styles.customIncrementContainer}>
+              <View style={styles.customIncrementContainer}>
                 <TextInput
                   style={styles.customIncrementInput}
                   placeholder="Enter custom increment"
@@ -685,10 +665,10 @@ export default function SellScreen() {
                   value={customIncrement}
                   onChangeText={(text) => {
                     setCustomIncrement(text);
-                    // 🚨 PERFORMANCE FIX: Debounce save
-                    debouncedSave(SELL_KEYS.CUSTOM_INCREMENT, text);
+                    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+                    saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
                   }}
-                  onBlur={handleGenericBlur}
+                  onBlur={() => Keyboard.dismiss()}
                 />
                 <TouchableOpacity 
                   style={styles.customIncrementButton}
@@ -700,9 +680,94 @@ export default function SellScreen() {
             )}
           </View>
 
-          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
+          <View style={commonStyles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={commonStyles.subtitle}>Agent Commission</Text>
+              <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
+                <IconSymbol
+                  ios_icon_name="plus.circle.fill"
+                  android_material_icon_name="add-circle"
+                  size={24}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {commissionTiers.map((tier, index) => (
+              <React.Fragment key={index}>
+              <View style={styles.tierContainer}>
+                <View style={styles.tierHeader}>
+                  <Text style={styles.tierLabel}>Tier {index + 1}</Text>
+                  {commissionTiers.length > 1 && (
+                    <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
+                      <IconSymbol
+                        ios_icon_name="trash"
+                        android_material_icon_name="delete"
+                        size={20}
+                        color={colors.secondary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                
+                <View style={styles.tierRow}>
+                  {commissionTiers.length > 1 && (
+                    <>
+                      <View style={styles.tierInputContainer}>
+                        <Text style={styles.tierInputLabel}>From ($)</Text>
+                        <TextInput
+                          style={[commonStyles.input, styles.tierInput]}
+                          placeholder="0"
+                          keyboardType="numeric"
+                          value={tier.fromPrice}
+                          onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
+                          onBlur={() => Keyboard.dismiss()}
+                          adjustsFontSizeToFit
+                          numberOfLines={1}
+                          minimumFontScale={0.5}
+                        />
+                      </View>
+                      
+                      <View style={styles.tierInputContainer}>
+                        <Text style={styles.tierInputLabel}>To ($)</Text>
+                        <TextInput
+                          style={[commonStyles.input, styles.tierInput]}
+                          placeholder="500000"
+                          keyboardType="numeric"
+                          value={tier.toPrice}
+                          onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
+                          onBlur={() => Keyboard.dismiss()}
+                          adjustsFontSizeToFit
+                          numberOfLines={1}
+                          minimumFontScale={0.5}
+                        />
+                      </View>
+                    </>
+                  )}
+                  
+                  <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
+                    <Text style={styles.tierInputLabel}>Rate (%)</Text>
+                    <TextInput
+                      style={[commonStyles.input, styles.tierInput]}
+                      placeholder="2.5"
+                      keyboardType="numeric"
+                      value={tier.rate}
+                      onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
+                      onBlur={() => Keyboard.dismiss()}
+                      adjustsFontSizeToFit
+                      numberOfLines={1}
+                      minimumFontScale={0.5}
+                    />
+                  </View>
+                </View>
+              </View>
+              </React.Fragment>
+            ))}
+          </View>
+
+          <View style={commonStyles.card}>
             <Text style={commonStyles.label}>Advertising Costs</Text>
-            <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
+            <View style={styles.inputWithPrefix}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
                 style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -710,12 +775,12 @@ export default function SellScreen() {
                 keyboardType="numeric"
                 value={advertisingCosts}
                 onChangeText={handleAdvertisingChange}
-                onBlur={handleGenericBlur}
+                onBlur={() => Keyboard.dismiss()}
               />
             </View>
 
             <Text style={commonStyles.label}>Legal Fees</Text>
-            <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
+            <View style={styles.inputWithPrefix}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
                 style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -723,11 +788,11 @@ export default function SellScreen() {
                 keyboardType="numeric"
                 value={legalFees}
                 onChangeText={handleLegalFeesChange}
-                onBlur={handleGenericBlur}
+                onBlur={() => Keyboard.dismiss()}
               />
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.sectionHeader}>
+            <View style={styles.sectionHeader}>
               <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
               <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
                 <IconSymbol
@@ -741,8 +806,8 @@ export default function SellScreen() {
 
             {debtItems.map((item, index) => (
               <React.Fragment key={index}>
-              <View onStartShouldSetResponder={() => false} style={styles.debtItemRow}>
-                <View onStartShouldSetResponder={() => false} style={[styles.inputWithPrefix, styles.debtInputContainer]}>
+              <View style={styles.debtItemRow}>
+                <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
                   <Text style={styles.inputPrefix}>$</Text>
                   <TextInput
                     style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -750,7 +815,7 @@ export default function SellScreen() {
                     keyboardType="numeric"
                     value={item.amount}
                     onChangeText={(value) => updateDebtItem(item.id, value)}
-                    onBlur={handleGenericBlur}
+                    onBlur={() => Keyboard.dismiss()}
                   />
                 </View>
                 {debtItems.length > 1 && (
@@ -770,7 +835,7 @@ export default function SellScreen() {
             {mortgageToBeRepaid && !mortgageRepaidInFull && (
               <>
                 <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-                <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
+                <View style={styles.inputWithPrefix}>
                   <Text style={styles.inputPrefix}>$</Text>
                   <TextInput
                     style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -778,42 +843,42 @@ export default function SellScreen() {
                     keyboardType="numeric"
                     value={partialRepaymentAmount}
                     onChangeText={handlePartialRepaymentChange}
-                    onBlur={handleGenericBlur}
+                    onBlur={() => Keyboard.dismiss()}
                   />
                 </View>
               </>
             )}
           </View>
 
-          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.resultsCard]}>
+          <View style={[commonStyles.card, styles.resultsCard]}>
             <Text style={styles.resultsTitle}>Cost Breakdown</Text>
             
-            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+            <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Sale Price</Text>
-              <Text style={styles.resultValue}>${formattedPrice}</Text>
+              <Text style={styles.resultValue}>${formatMoney(price)}</Text>
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.divider} />
+            <View style={styles.divider} />
 
-            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+            <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Agent Commission</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formattedCommission}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+            <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Advertising Costs</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formattedAdvertising}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+            <View style={styles.resultRow}>
               <Text style={styles.resultLabel}>Legal Fees</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formattedLegal}</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
             </View>
 
             {dischargeFee > 0 && (
-              <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+              <View style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-                <Text style={[styles.resultValue, styles.costValue]}>-${formattedDischargeFee}</Text>
+                <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
               </View>
             )}
 
@@ -833,51 +898,49 @@ export default function SellScreen() {
                 displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
               }
               
-              const formattedDisplayAmount = formatMoney(displayAmount);
-              
               return (
                 <React.Fragment key={index}>
                 {displayAmount > 0 && (
-                  <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
+                  <View style={styles.resultRow}>
                     <Text style={styles.resultLabel}>{labelText}</Text>
-                    <Text style={[styles.resultValue, styles.costValue]}>-${formattedDisplayAmount}</Text>
+                    <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
                   </View>
                 )}
                 </React.Fragment>
               );
             })}
 
-            <View onStartShouldSetResponder={() => false} style={styles.divider} />
+            <View style={styles.divider} />
 
-            <View onStartShouldSetResponder={() => false} style={styles.totalRow}>
+            <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Costs</Text>
-              <Text style={[styles.totalValue, styles.costValue]}>${formattedTotalCosts}</Text>
+              <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
             </View>
 
-            <View onStartShouldSetResponder={() => false} style={styles.totalRow}>
+            <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Net Proceeds</Text>
-              <Text style={[styles.totalValue, { color: colors.success }]}>${formattedNetProceeds}</Text>
+              <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
             </View>
           </View>
 
-          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
+          <View style={commonStyles.card}>
             <Text style={commonStyles.textSecondary}>
               * These calculations are estimates only. Actual costs may vary. 
               Please consult with a conveyancer or solicitor for exact figures.
             </Text>
           </View>
 
-          <View onStartShouldSetResponder={() => false} style={styles.bottomPadding} />
+          <View style={styles.bottomPadding} />
         </ScrollView>
 
-        <View onStartShouldSetResponder={() => false} style={styles.pinnedFooter}>
-          <View onStartShouldSetResponder={() => false} style={styles.pinnedContent}>
+        <View style={styles.pinnedFooter}>
+          <View style={styles.pinnedContent}>
             <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
             <Text style={[
               styles.pinnedValue,
-              { color: netProceedsColor }
+              { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
             ]}>
-              ${formattedNetProceeds}
+              ${formatMoney(netProceedsValue)}
             </Text>
           </View>
         </View>
@@ -920,21 +983,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 12,
     paddingBottom: 200,
-  },
-  diagnosticCard: {
-    backgroundColor: '#fff3cd',
-    borderWidth: 2,
-    borderColor: '#ffc107',
-  },
-  diagnosticLabel: {
-    color: '#856404',
-  },
-  diagnosticNote: {
-    fontSize: 12,
-    color: '#856404',
-    marginTop: 8,
-    fontStyle: 'italic',
-    fontFamily: 'CourierPrime_400Regular',
   },
   toggleSection: {
     gap: 12,
@@ -995,6 +1043,43 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
+  },
+  tierContainer: {
+    backgroundColor: colors.highlight,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  tierHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tierLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  tierRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tierInputContainer: {
+    flex: 1,
+  },
+  tierInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 4,
+    fontFamily: 'CourierPrime_700Bold',
+  },
+  tierInput: {
+    marginVertical: 0,
+    fontSize: 14,
+    paddingVertical: 8,
   },
   resultsCard: {
     backgroundColor: colors.highlight,
