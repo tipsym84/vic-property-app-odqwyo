@@ -310,6 +310,11 @@ export default function SellScreen() {
     Keyboard.dismiss();
   }, []);
 
+  const handleScroll = useCallback(() => {
+    console.log('User scrolled - dismissing keyboard');
+    Keyboard.dismiss();
+  }, []);
+
   const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
   
   // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
@@ -492,460 +497,460 @@ export default function SellScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={handleTapOutside}>
-      <View style={styles.container}>
-        <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <IconSymbol
-              ios_icon_name="chevron.left"
-              android_material_icon_name="arrow-back"
-              size={24}
-              color={colors.text}
-            />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Sell</Text>
-          <View style={{ width: 40 }} />
-        </View>
+    <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <IconSymbol
+            ios_icon_name="chevron.left"
+            android_material_icon_name="arrow-back"
+            size={24}
+            color={colors.text}
+          />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Sell</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
-          <View style={commonStyles.card}>
-            <View style={styles.toggleSection}>
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
-                <Switch
-                  value={mortgageToBeRepaid}
-                  onValueChange={handleMortgageToBeRepaidToggle}
-                  trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                  thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
-                />
-              </View>
-              
-              {mortgageToBeRepaid && (
-                <>
-                  <View style={styles.toggleRow}>
-                    <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
-                    <Switch
-                      value={mortgageRepaidInFull}
-                      onValueChange={handleMortgageRepaidInFullToggle}
-                      trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                      thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
-                    />
-                  </View>
-                </>
-              )}
-
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
-                <Switch
-                  value={useSaleFunds}
-                  onValueChange={handleUseSaleFundsToggle}
-                  trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                  thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
-                />
-              </View>
-            </View>
-          </View>
-
-          <View style={[commonStyles.card, styles.priceCard]}>
-            <Text style={styles.priceLabel}>Sale Price</Text>
-            <View style={styles.priceInputContainer}>
-              <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
-              <TextInput
-                style={[
-                  styles.priceInput,
-                  {
-                    fontSize: fixedFontSize,
-                    fontFamily: 'CourierPrime_700Bold',
-                    letterSpacing: -0.5,
-                    paddingLeft: 20,
-                    paddingRight: 8,
-                    height: 60,
-                    flexShrink: 0,
-                    overflow: 'visible',
-                    textAlign: 'right',
-                  },
-                ]}
-                value={salePriceText}
-                onChangeText={handlePriceTextChange}
-                onBlur={handlePriceBlur}
-                keyboardType="numeric"
-                selectTextOnFocus
-                placeholder=""
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={commonStyles.card}>
+          <View style={styles.toggleSection}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
+              <Switch
+                value={mortgageToBeRepaid}
+                onValueChange={handleMortgageToBeRepaidToggle}
+                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
               />
             </View>
             
-            <View style={styles.priceControls}>
-              <TouchableOpacity 
-                style={styles.priceButton}
-                onPress={() => adjustPrice(-priceIncrement)}
-              >
-                <IconSymbol
-                  ios_icon_name="minus.circle.fill"
-                  android_material_icon_name="remove-circle"
-                  size={44}
-                  color="#424242"
-                />
-              </TouchableOpacity>
-
-              <View style={styles.incrementContainer}>
-                <Text style={styles.incrementLabel}>Increment</Text>
-                <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.priceButton}
-                onPress={() => adjustPrice(priceIncrement)}
-              >
-                <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add-circle"
-                  size={44}
-                  color="#424242"
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.incrementSelector}>
-              <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.incrementOptions}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.incrementOption,
-                    showCustomIncrementInput && styles.incrementOptionActive
-                  ]}
-                  onPress={() => setShowCustomIncrementInput(!showCustomIncrementInput)}
-                >
-                  <Text style={[
-                    styles.incrementOptionText,
-                    showCustomIncrementInput && styles.incrementOptionTextActive
-                  ]}>
-                    Custom
-                  </Text>
-                </TouchableOpacity>
-                {incrementOptions.map((option, index) => (
-                  <React.Fragment key={index}>
-                  <TouchableOpacity
-                    style={[
-                      styles.incrementOption,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
-                    ]}
-                    onPress={() => {
-                      handleIncrementChange(option);
-                      setShowCustomIncrementInput(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.incrementOptionText,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
-                    ]}>
-                      ${(option / 1000).toFixed(0)}k
-                    </Text>
-                  </TouchableOpacity>
-                  </React.Fragment>
-                ))}
-              </ScrollView>
-            </View>
-
-            {showCustomIncrementInput && (
-              <View style={styles.customIncrementContainer}>
-                <TextInput
-                  style={styles.customIncrementInput}
-                  placeholder="Enter custom increment"
-                  keyboardType="numeric"
-                  value={customIncrement}
-                  onChangeText={(text) => {
-                    setCustomIncrement(text);
-                    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-                    saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
-                  }}
-                  onBlur={() => Keyboard.dismiss()}
-                />
-                <TouchableOpacity 
-                  style={styles.customIncrementButton}
-                  onPress={handleCustomIncrementSubmit}
-                >
-                  <Text style={styles.customIncrementButtonText}>Set</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          <View style={commonStyles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={commonStyles.subtitle}>Agent Commission</Text>
-              <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
-                <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add-circle"
-                  size={24}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {commissionTiers.map((tier, index) => (
-              <React.Fragment key={index}>
-              <View style={styles.tierContainer}>
-                <View style={styles.tierHeader}>
-                  <Text style={styles.tierLabel}>Tier {index + 1}</Text>
-                  {commissionTiers.length > 1 && (
-                    <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
-                      <IconSymbol
-                        ios_icon_name="trash"
-                        android_material_icon_name="delete"
-                        size={20}
-                        color={colors.secondary}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                
-                <View style={styles.tierRow}>
-                  {commissionTiers.length > 1 && (
-                    <>
-                      <View style={styles.tierInputContainer}>
-                        <Text style={styles.tierInputLabel}>From ($)</Text>
-                        <TextInput
-                          style={[commonStyles.input, styles.tierInput]}
-                          placeholder="0"
-                          keyboardType="numeric"
-                          value={tier.fromPrice}
-                          onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
-                          onBlur={() => Keyboard.dismiss()}
-                          adjustsFontSizeToFit
-                          numberOfLines={1}
-                          minimumFontScale={0.5}
-                        />
-                      </View>
-                      
-                      <View style={styles.tierInputContainer}>
-                        <Text style={styles.tierInputLabel}>To ($)</Text>
-                        <TextInput
-                          style={[commonStyles.input, styles.tierInput]}
-                          placeholder="500000"
-                          keyboardType="numeric"
-                          value={tier.toPrice}
-                          onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
-                          onBlur={() => Keyboard.dismiss()}
-                          adjustsFontSizeToFit
-                          numberOfLines={1}
-                          minimumFontScale={0.5}
-                        />
-                      </View>
-                    </>
-                  )}
-                  
-                  <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
-                    <Text style={styles.tierInputLabel}>Rate (%)</Text>
-                    <TextInput
-                      style={[commonStyles.input, styles.tierInput]}
-                      placeholder="2.5"
-                      keyboardType="numeric"
-                      value={tier.rate}
-                      onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
-                      onBlur={() => Keyboard.dismiss()}
-                      adjustsFontSizeToFit
-                      numberOfLines={1}
-                      minimumFontScale={0.5}
-                    />
-                  </View>
-                </View>
-              </View>
-              </React.Fragment>
-            ))}
-          </View>
-
-          <View style={commonStyles.card}>
-            <Text style={commonStyles.label}>Advertising Costs</Text>
-            <View style={styles.inputWithPrefix}>
-              <Text style={styles.inputPrefix}>$</Text>
-              <TextInput
-                style={[commonStyles.input, styles.inputWithPrefixField]}
-                placeholder="Enter advertising costs"
-                keyboardType="numeric"
-                value={advertisingCosts}
-                onChangeText={handleAdvertisingChange}
-                onBlur={() => Keyboard.dismiss()}
-              />
-            </View>
-
-            <Text style={commonStyles.label}>Legal Fees</Text>
-            <View style={styles.inputWithPrefix}>
-              <Text style={styles.inputPrefix}>$</Text>
-              <TextInput
-                style={[commonStyles.input, styles.inputWithPrefixField]}
-                placeholder="Enter legal fees"
-                keyboardType="numeric"
-                value={legalFees}
-                onChangeText={handleLegalFeesChange}
-                onBlur={() => Keyboard.dismiss()}
-              />
-            </View>
-
-            <View style={styles.sectionHeader}>
-              <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
-              <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
-                <IconSymbol
-                  ios_icon_name="plus.circle.fill"
-                  android_material_icon_name="add-circle"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {debtItems.map((item, index) => (
-              <React.Fragment key={index}>
-              <View style={styles.debtItemRow}>
-                <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
-                  <Text style={styles.inputPrefix}>$</Text>
-                  <TextInput
-                    style={[commonStyles.input, styles.inputWithPrefixField]}
-                    placeholder={`Debt ${index + 1}`}
-                    keyboardType="numeric"
-                    value={item.amount}
-                    onChangeText={(value) => updateDebtItem(item.id, value)}
-                    onBlur={() => Keyboard.dismiss()}
-                  />
-                </View>
-                {debtItems.length > 1 && (
-                  <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.deleteButton}>
-                    <IconSymbol
-                      ios_icon_name="minus.circle.fill"
-                      android_material_icon_name="remove-circle"
-                      size={24}
-                      color="#f44336"
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-              </React.Fragment>
-            ))}
-
-            {mortgageToBeRepaid && !mortgageRepaidInFull && (
+            {mortgageToBeRepaid && (
               <>
-                <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-                <View style={styles.inputWithPrefix}>
-                  <Text style={styles.inputPrefix}>$</Text>
-                  <TextInput
-                    style={[commonStyles.input, styles.inputWithPrefixField]}
-                    placeholder="Enter partial repayment amount"
-                    keyboardType="numeric"
-                    value={partialRepaymentAmount}
-                    onChangeText={handlePartialRepaymentChange}
-                    onBlur={() => Keyboard.dismiss()}
+                <View style={styles.toggleRow}>
+                  <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
+                  <Switch
+                    value={mortgageRepaidInFull}
+                    onValueChange={handleMortgageRepaidInFullToggle}
+                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                    thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
                   />
                 </View>
               </>
             )}
-          </View>
 
-          <View style={[commonStyles.card, styles.resultsCard]}>
-            <Text style={styles.resultsTitle}>Cost Breakdown</Text>
-            
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Sale Price</Text>
-              <Text style={styles.resultValue}>${formatMoney(price)}</Text>
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
+              <Switch
+                value={useSaleFunds}
+                onValueChange={handleUseSaleFundsToggle}
+                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
+                thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
+              />
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Agent Commission</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
-            </View>
-
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Advertising Costs</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
-            </View>
-
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Legal Fees</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
-            </View>
-
-            {dischargeFee > 0 && (
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-                <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
-              </View>
-            )}
-
-            {mortgageToBeRepaid && debtItems.map((item, index) => {
-              const debtAmount = parseFloat(item.amount) || 0;
-              
-              if (debtAmount === 0) {
-                return null;
-              }
-              
-              const labelText = `Mortgage/Debt ${index + 1}`;
-              
-              let displayAmount = 0;
-              if (mortgageRepaidInFull) {
-                displayAmount = debtAmount;
-              } else if (index === 0) {
-                displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
-              }
-              
-              return (
-                <React.Fragment key={index}>
-                {displayAmount > 0 && (
-                  <View style={styles.resultRow}>
-                    <Text style={styles.resultLabel}>{labelText}</Text>
-                    <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
-                  </View>
-                )}
-                </React.Fragment>
-              );
-            })}
-
-            <View style={styles.divider} />
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Costs</Text>
-              <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
-            </View>
-
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Net Proceeds</Text>
-              <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
-            </View>
-          </View>
-
-          <View style={commonStyles.card}>
-            <Text style={commonStyles.textSecondary}>
-              * These calculations are estimates only. Actual costs may vary. 
-              Please consult with a conveyancer or solicitor for exact figures.
-            </Text>
-          </View>
-
-          <View style={styles.bottomPadding} />
-        </ScrollView>
-
-        <View style={styles.pinnedFooter}>
-          <View style={styles.pinnedContent}>
-            <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
-            <Text style={[
-              styles.pinnedValue,
-              { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
-            ]}>
-              ${formatMoney(netProceedsValue)}
-            </Text>
           </View>
         </View>
+
+        <View style={[commonStyles.card, styles.priceCard]}>
+          <Text style={styles.priceLabel}>Sale Price</Text>
+          <View style={styles.priceInputContainer}>
+            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
+            <TextInput
+              style={[
+                styles.priceInput,
+                {
+                  fontSize: fixedFontSize,
+                  fontFamily: 'CourierPrime_700Bold',
+                  letterSpacing: -0.5,
+                  paddingLeft: 20,
+                  paddingRight: 8,
+                  height: 60,
+                  flexShrink: 0,
+                  overflow: 'visible',
+                  textAlign: 'right',
+                },
+              ]}
+              value={salePriceText}
+              onChangeText={handlePriceTextChange}
+              onBlur={handlePriceBlur}
+              keyboardType="numeric"
+              selectTextOnFocus
+              placeholder=""
+            />
+          </View>
+          
+          <View style={styles.priceControls}>
+            <TouchableOpacity 
+              style={styles.priceButton}
+              onPress={() => adjustPrice(-priceIncrement)}
+            >
+              <IconSymbol
+                ios_icon_name="minus.circle.fill"
+                android_material_icon_name="remove-circle"
+                size={44}
+                color="#424242"
+              />
+            </TouchableOpacity>
+
+            <View style={styles.incrementContainer}>
+              <Text style={styles.incrementLabel}>Increment</Text>
+              <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.priceButton}
+              onPress={() => adjustPrice(priceIncrement)}
+            >
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={44}
+                color="#424242"
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.incrementSelector}>
+            <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.incrementOptions}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.incrementOption,
+                  showCustomIncrementInput && styles.incrementOptionActive
+                ]}
+                onPress={() => setShowCustomIncrementInput(!showCustomIncrementInput)}
+              >
+                <Text style={[
+                  styles.incrementOptionText,
+                  showCustomIncrementInput && styles.incrementOptionTextActive
+                ]}>
+                  Custom
+                </Text>
+              </TouchableOpacity>
+              {incrementOptions.map((option, index) => (
+                <React.Fragment key={index}>
+                <TouchableOpacity
+                  style={[
+                    styles.incrementOption,
+                    priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
+                  ]}
+                  onPress={() => {
+                    handleIncrementChange(option);
+                    setShowCustomIncrementInput(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.incrementOptionText,
+                    priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
+                  ]}>
+                    ${(option / 1000).toFixed(0)}k
+                  </Text>
+                </TouchableOpacity>
+                </React.Fragment>
+              ))}
+            </ScrollView>
+          </View>
+
+          {showCustomIncrementInput && (
+            <View style={styles.customIncrementContainer}>
+              <TextInput
+                style={styles.customIncrementInput}
+                placeholder="Enter custom increment"
+                keyboardType="numeric"
+                value={customIncrement}
+                onChangeText={(text) => {
+                  setCustomIncrement(text);
+                  // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
+                  saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
+                }}
+                onBlur={() => Keyboard.dismiss()}
+              />
+              <TouchableOpacity 
+                style={styles.customIncrementButton}
+                onPress={handleCustomIncrementSubmit}
+              >
+                <Text style={styles.customIncrementButtonText}>Set</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={commonStyles.card}>
+          <View style={styles.sectionHeader}>
+            <Text style={commonStyles.subtitle}>Agent Commission</Text>
+            <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={24}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {commissionTiers.map((tier, index) => (
+            <React.Fragment key={index}>
+            <View style={styles.tierContainer}>
+              <View style={styles.tierHeader}>
+                <Text style={styles.tierLabel}>Tier {index + 1}</Text>
+                {commissionTiers.length > 1 && (
+                  <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
+                    <IconSymbol
+                      ios_icon_name="trash"
+                      android_material_icon_name="delete"
+                      size={20}
+                      color={colors.secondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <View style={styles.tierRow}>
+                {commissionTiers.length > 1 && (
+                  <>
+                    <View style={styles.tierInputContainer}>
+                      <Text style={styles.tierInputLabel}>From ($)</Text>
+                      <TextInput
+                        style={[commonStyles.input, styles.tierInput]}
+                        placeholder="0"
+                        keyboardType="numeric"
+                        value={tier.fromPrice}
+                        onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
+                        onBlur={() => Keyboard.dismiss()}
+                        adjustsFontSizeToFit
+                        numberOfLines={1}
+                        minimumFontScale={0.5}
+                      />
+                    </View>
+                    
+                    <View style={styles.tierInputContainer}>
+                      <Text style={styles.tierInputLabel}>To ($)</Text>
+                      <TextInput
+                        style={[commonStyles.input, styles.tierInput]}
+                        placeholder="500000"
+                        keyboardType="numeric"
+                        value={tier.toPrice}
+                        onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
+                        onBlur={() => Keyboard.dismiss()}
+                        adjustsFontSizeToFit
+                        numberOfLines={1}
+                        minimumFontScale={0.5}
+                      />
+                    </View>
+                  </>
+                )}
+                
+                <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
+                  <Text style={styles.tierInputLabel}>Rate (%)</Text>
+                  <TextInput
+                    style={[commonStyles.input, styles.tierInput]}
+                    placeholder="2.5"
+                    keyboardType="numeric"
+                    value={tier.rate}
+                    onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
+                    onBlur={() => Keyboard.dismiss()}
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    minimumFontScale={0.5}
+                  />
+                </View>
+              </View>
+            </View>
+            </React.Fragment>
+          ))}
+        </View>
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.label}>Advertising Costs</Text>
+          <View style={styles.inputWithPrefix}>
+            <Text style={styles.inputPrefix}>$</Text>
+            <TextInput
+              style={[commonStyles.input, styles.inputWithPrefixField]}
+              placeholder="Enter advertising costs"
+              keyboardType="numeric"
+              value={advertisingCosts}
+              onChangeText={handleAdvertisingChange}
+              onBlur={() => Keyboard.dismiss()}
+            />
+          </View>
+
+          <Text style={commonStyles.label}>Legal Fees</Text>
+          <View style={styles.inputWithPrefix}>
+            <Text style={styles.inputPrefix}>$</Text>
+            <TextInput
+              style={[commonStyles.input, styles.inputWithPrefixField]}
+              placeholder="Enter legal fees"
+              keyboardType="numeric"
+              value={legalFees}
+              onChangeText={handleLegalFeesChange}
+              onBlur={() => Keyboard.dismiss()}
+            />
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
+            <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
+              <IconSymbol
+                ios_icon_name="plus.circle.fill"
+                android_material_icon_name="add-circle"
+                size={20}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {debtItems.map((item, index) => (
+            <React.Fragment key={index}>
+            <View style={styles.debtItemRow}>
+              <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
+                <Text style={styles.inputPrefix}>$</Text>
+                <TextInput
+                  style={[commonStyles.input, styles.inputWithPrefixField]}
+                  placeholder={`Debt ${index + 1}`}
+                  keyboardType="numeric"
+                  value={item.amount}
+                  onChangeText={(value) => updateDebtItem(item.id, value)}
+                  onBlur={() => Keyboard.dismiss()}
+                />
+              </View>
+              {debtItems.length > 1 && (
+                <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.deleteButton}>
+                  <IconSymbol
+                    ios_icon_name="minus.circle.fill"
+                    android_material_icon_name="remove-circle"
+                    size={24}
+                    color="#f44336"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+            </React.Fragment>
+          ))}
+
+          {mortgageToBeRepaid && !mortgageRepaidInFull && (
+            <>
+              <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>$</Text>
+                <TextInput
+                  style={[commonStyles.input, styles.inputWithPrefixField]}
+                  placeholder="Enter partial repayment amount"
+                  keyboardType="numeric"
+                  value={partialRepaymentAmount}
+                  onChangeText={handlePartialRepaymentChange}
+                  onBlur={() => Keyboard.dismiss()}
+                />
+              </View>
+            </>
+          )}
+        </View>
+
+        <View style={[commonStyles.card, styles.resultsCard]}>
+          <Text style={styles.resultsTitle}>Cost Breakdown</Text>
+          
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Sale Price</Text>
+            <Text style={styles.resultValue}>${formatMoney(price)}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Agent Commission</Text>
+            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
+          </View>
+
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Advertising Costs</Text>
+            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
+          </View>
+
+          <View style={styles.resultRow}>
+            <Text style={styles.resultLabel}>Legal Fees</Text>
+            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
+          </View>
+
+          {dischargeFee > 0 && (
+            <View style={styles.resultRow}>
+              <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
+              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
+            </View>
+          )}
+
+          {mortgageToBeRepaid && debtItems.map((item, index) => {
+            const debtAmount = parseFloat(item.amount) || 0;
+            
+            if (debtAmount === 0) {
+              return null;
+            }
+            
+            const labelText = `Mortgage/Debt ${index + 1}`;
+            
+            let displayAmount = 0;
+            if (mortgageRepaidInFull) {
+              displayAmount = debtAmount;
+            } else if (index === 0) {
+              displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
+            }
+            
+            return (
+              <React.Fragment key={index}>
+              {displayAmount > 0 && (
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>{labelText}</Text>
+                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
+                </View>
+              )}
+              </React.Fragment>
+            );
+          })}
+
+          <View style={styles.divider} />
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Costs</Text>
+            <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Net Proceeds</Text>
+            <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
+          </View>
+        </View>
+
+        <View style={commonStyles.card}>
+          <Text style={commonStyles.textSecondary}>
+            * These calculations are estimates only. Actual costs may vary. 
+            Please consult with a conveyancer or solicitor for exact figures.
+          </Text>
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+
+      <View style={styles.pinnedFooter}>
+        <View style={styles.pinnedContent}>
+          <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
+          <Text style={[
+            styles.pinnedValue,
+            { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
+          ]}>
+            ${formatMoney(netProceedsValue)}
+          </Text>
+        </View>
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 }
 

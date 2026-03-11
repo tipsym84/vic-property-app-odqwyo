@@ -1,4 +1,3 @@
-
 {
   "expo": {
     "name": "Vic Property",
@@ -20,7 +19,9 @@
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["vicproperty"]
+            "CFBundleURLSchemes": [
+              "vicproperty"
+            ]
           }
         ]
       }
