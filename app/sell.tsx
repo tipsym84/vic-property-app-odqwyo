@@ -494,7 +494,7 @@ export default function SellScreen() {
   return (
     <TouchableWithoutFeedback onPress={handleTapOutside}>
       <View style={styles.container}>
-        <View style={styles.headerBar}>
+        <View style={styles.headerBar} onStartShouldSetResponder={() => false}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <IconSymbol
               ios_icon_name="chevron.left"
@@ -513,10 +513,11 @@ export default function SellScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          nestedScrollEnabled={true}
         >
           {/* 🔬 DIAGNOSTIC TOGGLE - Keep visible for testing */}
-          <View style={[commonStyles.card, styles.diagnosticCard]}>
-            <View style={styles.toggleRow}>
+          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.diagnosticCard]}>
+            <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
               <Text style={[styles.toggleLabel, styles.diagnosticLabel]}>
                 🔬 Enable Cross-Screen Transfer (Diagnostic)
               </Text>
@@ -532,9 +533,9 @@ export default function SellScreen() {
             </Text>
           </View>
 
-          <View style={commonStyles.card}>
-            <View style={styles.toggleSection}>
-              <View style={styles.toggleRow}>
+          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
+            <View onStartShouldSetResponder={() => false} style={styles.toggleSection}>
+              <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
                 <Switch
                   value={mortgageToBeRepaid}
@@ -546,7 +547,7 @@ export default function SellScreen() {
               
               {mortgageToBeRepaid && (
                 <>
-                  <View style={styles.toggleRow}>
+                  <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
                     <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
                     <Switch
                       value={mortgageRepaidInFull}
@@ -558,7 +559,7 @@ export default function SellScreen() {
                 </>
               )}
 
-              <View style={styles.toggleRow}>
+              <View onStartShouldSetResponder={() => false} style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
                 <Switch
                   value={useSaleFunds}
@@ -570,9 +571,9 @@ export default function SellScreen() {
             </View>
           </View>
 
-          <View style={[commonStyles.card, styles.priceCard]}>
+          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.priceCard]}>
             <Text style={styles.priceLabel}>Sale Price</Text>
-            <View style={styles.priceInputContainer}>
+            <View onStartShouldSetResponder={() => false} style={styles.priceInputContainer}>
               <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
               <TextInput
                 style={[
@@ -598,7 +599,7 @@ export default function SellScreen() {
               />
             </View>
             
-            <View style={styles.priceControls}>
+            <View onStartShouldSetResponder={() => false} style={styles.priceControls}>
               <TouchableOpacity 
                 style={styles.priceButton}
                 onPress={() => adjustPrice(-priceIncrement)}
@@ -611,7 +612,7 @@ export default function SellScreen() {
                 />
               </TouchableOpacity>
 
-              <View style={styles.incrementContainer}>
+              <View onStartShouldSetResponder={() => false} style={styles.incrementContainer}>
                 <Text style={styles.incrementLabel}>Increment</Text>
                 <Text style={styles.incrementValue}>${formattedPriceIncrement}</Text>
               </View>
@@ -629,12 +630,13 @@ export default function SellScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.incrementSelector}>
+            <View onStartShouldSetResponder={() => false} style={styles.incrementSelector}>
               <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.incrementOptions}
+                nestedScrollEnabled={true}
               >
                 <TouchableOpacity
                   style={[
@@ -675,7 +677,7 @@ export default function SellScreen() {
             </View>
 
             {showCustomIncrementInput && (
-              <View style={styles.customIncrementContainer}>
+              <View onStartShouldSetResponder={() => false} style={styles.customIncrementContainer}>
                 <TextInput
                   style={styles.customIncrementInput}
                   placeholder="Enter custom increment"
@@ -698,11 +700,9 @@ export default function SellScreen() {
             )}
           </View>
 
-          {/* 🚨 COMMISSION TIER SECTION TEMPORARILY REMOVED FOR TESTING */}
-
-          <View style={commonStyles.card}>
+          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
             <Text style={commonStyles.label}>Advertising Costs</Text>
-            <View style={styles.inputWithPrefix}>
+            <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
                 style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -715,7 +715,7 @@ export default function SellScreen() {
             </View>
 
             <Text style={commonStyles.label}>Legal Fees</Text>
-            <View style={styles.inputWithPrefix}>
+            <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
               <Text style={styles.inputPrefix}>$</Text>
               <TextInput
                 style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -727,7 +727,7 @@ export default function SellScreen() {
               />
             </View>
 
-            <View style={styles.sectionHeader}>
+            <View onStartShouldSetResponder={() => false} style={styles.sectionHeader}>
               <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
               <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
                 <IconSymbol
@@ -741,8 +741,8 @@ export default function SellScreen() {
 
             {debtItems.map((item, index) => (
               <React.Fragment key={index}>
-              <View style={styles.debtItemRow}>
-                <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
+              <View onStartShouldSetResponder={() => false} style={styles.debtItemRow}>
+                <View onStartShouldSetResponder={() => false} style={[styles.inputWithPrefix, styles.debtInputContainer]}>
                   <Text style={styles.inputPrefix}>$</Text>
                   <TextInput
                     style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -770,7 +770,7 @@ export default function SellScreen() {
             {mortgageToBeRepaid && !mortgageRepaidInFull && (
               <>
                 <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-                <View style={styles.inputWithPrefix}>
+                <View onStartShouldSetResponder={() => false} style={styles.inputWithPrefix}>
                   <Text style={styles.inputPrefix}>$</Text>
                   <TextInput
                     style={[commonStyles.input, styles.inputWithPrefixField]}
@@ -785,33 +785,33 @@ export default function SellScreen() {
             )}
           </View>
 
-          <View style={[commonStyles.card, styles.resultsCard]}>
+          <View onStartShouldSetResponder={() => false} style={[commonStyles.card, styles.resultsCard]}>
             <Text style={styles.resultsTitle}>Cost Breakdown</Text>
             
-            <View style={styles.resultRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
               <Text style={styles.resultLabel}>Sale Price</Text>
               <Text style={styles.resultValue}>${formattedPrice}</Text>
             </View>
 
-            <View style={styles.divider} />
+            <View onStartShouldSetResponder={() => false} style={styles.divider} />
 
-            <View style={styles.resultRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
               <Text style={styles.resultLabel}>Agent Commission</Text>
               <Text style={[styles.resultValue, styles.costValue]}>-${formattedCommission}</Text>
             </View>
 
-            <View style={styles.resultRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
               <Text style={styles.resultLabel}>Advertising Costs</Text>
               <Text style={[styles.resultValue, styles.costValue]}>-${formattedAdvertising}</Text>
             </View>
 
-            <View style={styles.resultRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
               <Text style={styles.resultLabel}>Legal Fees</Text>
               <Text style={[styles.resultValue, styles.costValue]}>-${formattedLegal}</Text>
             </View>
 
             {dischargeFee > 0 && (
-              <View style={styles.resultRow}>
+              <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
                 <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
                 <Text style={[styles.resultValue, styles.costValue]}>-${formattedDischargeFee}</Text>
               </View>
@@ -838,7 +838,7 @@ export default function SellScreen() {
               return (
                 <React.Fragment key={index}>
                 {displayAmount > 0 && (
-                  <View style={styles.resultRow}>
+                  <View onStartShouldSetResponder={() => false} style={styles.resultRow}>
                     <Text style={styles.resultLabel}>{labelText}</Text>
                     <Text style={[styles.resultValue, styles.costValue]}>-${formattedDisplayAmount}</Text>
                   </View>
@@ -847,31 +847,31 @@ export default function SellScreen() {
               );
             })}
 
-            <View style={styles.divider} />
+            <View onStartShouldSetResponder={() => false} style={styles.divider} />
 
-            <View style={styles.totalRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Costs</Text>
               <Text style={[styles.totalValue, styles.costValue]}>${formattedTotalCosts}</Text>
             </View>
 
-            <View style={styles.totalRow}>
+            <View onStartShouldSetResponder={() => false} style={styles.totalRow}>
               <Text style={styles.totalLabel}>Net Proceeds</Text>
               <Text style={[styles.totalValue, { color: colors.success }]}>${formattedNetProceeds}</Text>
             </View>
           </View>
 
-          <View style={commonStyles.card}>
+          <View onStartShouldSetResponder={() => false} style={commonStyles.card}>
             <Text style={commonStyles.textSecondary}>
               * These calculations are estimates only. Actual costs may vary. 
               Please consult with a conveyancer or solicitor for exact figures.
             </Text>
           </View>
 
-          <View style={styles.bottomPadding} />
+          <View onStartShouldSetResponder={() => false} style={styles.bottomPadding} />
         </ScrollView>
 
-        <View style={styles.pinnedFooter}>
-          <View style={styles.pinnedContent}>
+        <View onStartShouldSetResponder={() => false} style={styles.pinnedFooter}>
+          <View onStartShouldSetResponder={() => false} style={styles.pinnedContent}>
             <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
             <Text style={[
               styles.pinnedValue,
@@ -1136,7 +1136,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#9e9e e',
+    borderColor: '#9e9e9e',
     minWidth: 60,
     alignItems: 'center',
   },
