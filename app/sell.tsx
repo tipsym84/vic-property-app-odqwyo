@@ -54,6 +54,13 @@ export default function SellScreen() {
     loadSellScreenData();
   }, []);
 
+  // Save structure whenever arrays change
+  useEffect(() => {
+    if (debtItems.length > 0 || commissionTiers.length > 0) {
+      saveSellScreenStructure();
+    }
+  }, [debtItems, commissionTiers, saveSellScreenStructure]);
+
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -144,29 +151,35 @@ export default function SellScreen() {
         console.log('Loaded Sell screen data:', data);
         
         if (data.debtItems && data.debtItems.length > 0) {
-          setDebtItems(data.debtItems);
           // Load debt amounts from localStorage
-          for (const item of data.debtItems) {
-            const savedAmount = await loadNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id);
-            if (savedAmount !== null) {
-              item.amount = savedAmount;
-            }
-          }
-          setDebtItems([...data.debtItems]);
+          const debtsWithAmounts = await Promise.all(
+            data.debtItems.map(async (item: DebtItem) => {
+              const savedAmount = await loadNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id);
+              return {
+                ...item,
+                amount: savedAmount !== null ? savedAmount : item.amount || ''
+              };
+            })
+          );
+          setDebtItems(debtsWithAmounts);
         }
         
         if (data.commissionTiers && data.commissionTiers.length > 0) {
-          setCommissionTiers(data.commissionTiers);
           // Load commission tier values from localStorage
-          for (const tier of data.commissionTiers) {
-            const savedFrom = await loadNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id);
-            const savedTo = await loadNumericValue(SELL_KEYS.COMMISSION_TO + tier.id);
-            const savedRate = await loadNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id);
-            if (savedFrom !== null) tier.fromPrice = savedFrom;
-            if (savedTo !== null) tier.toPrice = savedTo;
-            if (savedRate !== null) tier.rate = savedRate;
-          }
-          setCommissionTiers([...data.commissionTiers]);
+          const tiersWithValues = await Promise.all(
+            data.commissionTiers.map(async (tier: CommissionTier) => {
+              const savedFrom = await loadNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id);
+              const savedTo = await loadNumericValue(SELL_KEYS.COMMISSION_TO + tier.id);
+              const savedRate = await loadNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id);
+              return {
+                ...tier,
+                fromPrice: savedFrom !== null ? savedFrom : tier.fromPrice || '',
+                toPrice: savedTo !== null ? savedTo : tier.toPrice || '',
+                rate: savedRate !== null ? savedRate : tier.rate || ''
+              };
+            })
+          );
+          setCommissionTiers(tiersWithValues);
         }
       } else {
         console.log('No saved Sell screen data found - using defaults');
@@ -315,7 +328,7 @@ export default function SellScreen() {
     Keyboard.dismiss();
   }, []);
 
-  const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
+  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
   
   // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
@@ -380,9 +393,7 @@ export default function SellScreen() {
       { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
     ];
     setCommissionTiers(updatedTiers);
-    
-    // Save structure change
-    saveSellScreenStructure();
+    console.log('Added commission tier with id:', newId);
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
@@ -423,9 +434,6 @@ export default function SellScreen() {
       saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
-      
-      // Save structure change
-      saveSellScreenStructure();
     }
   };
 
@@ -434,9 +442,6 @@ export default function SellScreen() {
     console.log('Adding new debt item with id:', newId);
     const updatedItems = [...debtItems, { id: newId, amount: '' }];
     setDebtItems(updatedItems);
-    
-    // Save structure change
-    saveSellScreenStructure();
   };
 
   const updateDebtItem = (id: string, amount: string) => {
@@ -458,9 +463,6 @@ export default function SellScreen() {
       // Clear from localStorage using fixed key
       const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
       saveNumericValue(storageKey, '');
-      
-      // Save structure change
-      saveSellScreenStructure();
     }
   };
 
@@ -638,27 +640,32 @@ export default function SellScreen() {
                   Custom
                 </Text>
               </TouchableOpacity>
-              {incrementOptions.map((option, index) => (
-                <React.Fragment key={index}>
-                <TouchableOpacity
-                  style={[
-                    styles.incrementOption,
-                    priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
-                  ]}
-                  onPress={() => {
-                    handleIncrementChange(option);
-                    setShowCustomIncrementInput(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.incrementOptionText,
-                    priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
-                  ]}>
-                    ${(option / 1000).toFixed(0)}k
-                  </Text>
-                </TouchableOpacity>
-                </React.Fragment>
-              ))}
+              {incrementOptions.map((option, index) => {
+                const displayText = option >= 1000 
+                  ? `$${(option / 1000).toFixed(option % 1000 === 0 ? 0 : 1)}k`
+                  : `$${option}`;
+                return (
+                  <React.Fragment key={index}>
+                  <TouchableOpacity
+                    style={[
+                      styles.incrementOption,
+                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
+                    ]}
+                    onPress={() => {
+                      handleIncrementChange(option);
+                      setShowCustomIncrementInput(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.incrementOptionText,
+                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
+                    ]}>
+                      {displayText}
+                    </Text>
+                  </TouchableOpacity>
+                  </React.Fragment>
+                );
+              })}
             </ScrollView>
           </View>
 

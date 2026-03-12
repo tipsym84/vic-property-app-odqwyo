@@ -88,6 +88,13 @@ export default function BuyScreen() {
     loadBuyScreenData();
   }, []);
 
+  // Save structure whenever arrays change
+  useEffect(() => {
+    if (loans.length > 0 || savingsItems.length > 0 || costItems.length > 0) {
+      saveBuyScreenStructure();
+    }
+  }, [loans, savingsItems, costItems, selectedLoanId, viewMode, saveBuyScreenStructure]);
+
   useFocusEffect(
     useCallback(() => {
       console.log('Buy screen focused - reloading persisted values');
@@ -158,41 +165,47 @@ export default function BuyScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Buy screen data:', data);
         
-        if (data.loans) {
-          setLoans(data.loans);
+        if (data.loans && data.loans.length > 0) {
           // Load loan amounts from localStorage
-          for (const loan of data.loans) {
-            const savedAmount = await loadNumericValue(BUY_KEYS.LOAN_AMOUNT + loan.id);
-            if (savedAmount !== null) {
-              loan.amount = savedAmount;
-            }
-          }
-          setLoans([...data.loans]);
+          const loansWithAmounts = await Promise.all(
+            data.loans.map(async (loan: LoanItem) => {
+              const savedAmount = await loadNumericValue(BUY_KEYS.LOAN_AMOUNT + loan.id);
+              return {
+                ...loan,
+                amount: savedAmount !== null ? savedAmount : loan.amount || ''
+              };
+            })
+          );
+          setLoans(loansWithAmounts);
         }
         if (data.selectedLoanId) setSelectedLoanId(data.selectedLoanId);
         
-        if (data.savingsItems) {
-          setSavingsItems(data.savingsItems);
+        if (data.savingsItems && data.savingsItems.length > 0) {
           // Load savings amounts from localStorage
-          for (const item of data.savingsItems) {
-            const savedAmount = await loadNumericValue(BUY_KEYS.SAVINGS_AMOUNT + item.id);
-            if (savedAmount !== null) {
-              item.amount = savedAmount;
-            }
-          }
-          setSavingsItems([...data.savingsItems]);
+          const savingsWithAmounts = await Promise.all(
+            data.savingsItems.map(async (item: SavingsItem) => {
+              const savedAmount = await loadNumericValue(BUY_KEYS.SAVINGS_AMOUNT + item.id);
+              return {
+                ...item,
+                amount: savedAmount !== null ? savedAmount : item.amount || ''
+              };
+            })
+          );
+          setSavingsItems(savingsWithAmounts);
         }
         
-        if (data.costItems) {
-          setCostItems(data.costItems);
+        if (data.costItems && data.costItems.length > 0) {
           // Load cost amounts from localStorage
-          for (const item of data.costItems) {
-            const savedAmount = await loadNumericValue(BUY_KEYS.COST_AMOUNT + item.id);
-            if (savedAmount !== null) {
-              item.amount = savedAmount;
-            }
-          }
-          setCostItems([...data.costItems]);
+          const costsWithAmounts = await Promise.all(
+            data.costItems.map(async (item: CostItem) => {
+              const savedAmount = await loadNumericValue(BUY_KEYS.COST_AMOUNT + item.id);
+              return {
+                ...item,
+                amount: savedAmount !== null ? savedAmount : item.amount || ''
+              };
+            })
+          );
+          setCostItems(costsWithAmounts);
         }
         
         if (data.viewMode) setViewMode(data.viewMode);
@@ -203,7 +216,7 @@ export default function BuyScreen() {
   };
 
   // Save structure data only (not individual field values - those are saved in handlers)
-  const saveBuyScreenStructure = async () => {
+  const saveBuyScreenStructure = useCallback(async () => {
     try {
       const data = {
         loans: loans.map(l => ({ id: l.id, name: l.name, amount: '' })), // Structure only
@@ -213,11 +226,11 @@ export default function BuyScreen() {
         viewMode,
       };
       await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
-      console.log('Saved Buy screen structure');
+      console.log('Saved Buy screen structure:', data);
     } catch (error) {
       console.error('Error saving Buy screen structure:', error);
     }
-  };
+  }, [loans, selectedLoanId, savingsItems, costItems, viewMode]);
 
   const handlePrimaryResidenceToggle = async (value: boolean) => {
     console.log('User toggled Primary Residence to:', value);
@@ -377,8 +390,7 @@ export default function BuyScreen() {
       const defaultType = availableOptions[0];
       const updatedItems = [...costItems, { id: newId, type: defaultType, customLabel: '', amount: '' }];
       setCostItems(updatedItems);
-      // Save structure change
-      saveBuyScreenStructure();
+      console.log('Added cost item with id:', newId);
     }
   };
 
@@ -392,16 +404,12 @@ export default function BuyScreen() {
     } else {
       setShowCustomLabelInput(null);
     }
-    // Save structure change
-    saveBuyScreenStructure();
   };
 
   const updateCostItemCustomLabel = (id: string, customLabel: string) => {
     setCostItems(costItems.map(item => 
       item.id === id ? { ...item, customLabel } : item
     ));
-    // Save structure change
-    saveBuyScreenStructure();
   };
 
   const updateCostItemAmount = (id: string, amount: string) => {
@@ -422,8 +430,6 @@ export default function BuyScreen() {
     // Clear from localStorage using fixed key
     const storageKey = BUY_KEYS.COST_AMOUNT + id;
     saveNumericValue(storageKey, '');
-    // Save structure change
-    saveBuyScreenStructure();
   };
 
   const getCostItemDisplayLabel = (item: CostItem): string => {
@@ -469,9 +475,6 @@ export default function BuyScreen() {
     const storageKey = BUY_KEYS.LOAN_AMOUNT + editingLoanId;
     saveNumericValue(storageKey, tempLoanAmount);
     
-    // Save structure change
-    saveBuyScreenStructure();
-    
     setShowLoanModal(false);
     setEditingLoanId(null);
     setTempLoanName('');
@@ -488,8 +491,6 @@ export default function BuyScreen() {
       // Clear from localStorage using fixed key
       const storageKey = BUY_KEYS.LOAN_AMOUNT + id;
       saveNumericValue(storageKey, '');
-      // Save structure change
-      saveBuyScreenStructure();
     }
   };
 
@@ -497,8 +498,7 @@ export default function BuyScreen() {
     const newId = (savingsItems.length + 1).toString();
     const updatedItems = [...savingsItems, { id: newId, amount: '' }];
     setSavingsItems(updatedItems);
-    // Save structure change
-    saveBuyScreenStructure();
+    console.log('Added savings item with id:', newId);
   };
 
   const updateSavingsItem = (id: string, amount: string) => {
@@ -518,12 +518,10 @@ export default function BuyScreen() {
       // Clear from localStorage using fixed key
       const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
       saveNumericValue(storageKey, '');
-      // Save structure change
-      saveBuyScreenStructure();
     }
   };
 
-  const incrementOptions = [500, 2000, 5000, 10000, 20000, 50000];
+  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
 
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
@@ -690,27 +688,32 @@ export default function BuyScreen() {
                   Custom
                 </Text>
               </TouchableOpacity>
-              {incrementOptions.map((option, index) => (
-                <React.Fragment key={index}>
-                <TouchableOpacity
-                  style={[
-                    styles.incrementOption,
-                    bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
-                  ]}
-                  onPress={() => {
-                    handleIncrementChange(option);
-                    setShowCustomIncrementInput(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.incrementOptionText,
-                    bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
-                  ]}>
-                    ${(option / 1000).toFixed(option < 1000 ? 0 : 0)}k
-                  </Text>
-                </TouchableOpacity>
-                </React.Fragment>
-              ))}
+              {incrementOptions.map((option, index) => {
+                const displayText = option >= 1000 
+                  ? `$${(option / 1000).toFixed(option % 1000 === 0 ? 0 : 1)}k`
+                  : `$${option}`;
+                return (
+                  <React.Fragment key={index}>
+                  <TouchableOpacity
+                    style={[
+                      styles.incrementOption,
+                      bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
+                    ]}
+                    onPress={() => {
+                      handleIncrementChange(option);
+                      setShowCustomIncrementInput(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.incrementOptionText,
+                      bidIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
+                    ]}>
+                      {displayText}
+                    </Text>
+                  </TouchableOpacity>
+                  </React.Fragment>
+                );
+              })}
             </ScrollView>
           </View>
 
