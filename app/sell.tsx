@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { colors, commonStyles } from '@/styles/commonStyles';
 import { IconSymbol } from '@/components/IconSymbol';
-import { useProperty } from '@/contexts/PropertyContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { saveNumericValue, loadNumericValue, saveToggleValue, loadToggleValue, SELL_KEYS } from '@/utils/localStorage';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useProperty } from '@/contexts/PropertyContext';
+import { colors, commonStyles } from '@/styles/commonStyles';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface CommissionTier {
   id: string;
@@ -22,930 +22,632 @@ interface DebtItem {
 
 export default function SellScreen() {
   const router = useRouter();
-  const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
-  
-  const [mortgageToBeRepaid, setMortgageToBeRepaid] = useState(false);
-  const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
-  const [useSaleFunds, setUseSaleFunds] = useState(false);
-  
-  const [salePrice, setSalePrice] = useState(0);
-  const [salePriceText, setSalePriceText] = useState('');
-  const [priceIncrement, setPriceIncrement] = useState(5000);
-  const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
-  const [customIncrement, setCustomIncrement] = useState('1000');
-  
+  const { netProceeds, setNetProceeds } = useProperty();
+
+  const [salePrice, setSalePrice] = useState('');
+  const [customIncrement, setCustomIncrement] = useState('');
+  const [selectedIncrement, setSelectedIncrement] = useState(10000);
   const [advertisingCosts, setAdvertisingCosts] = useState('');
   const [legalFees, setLegalFees] = useState('');
-  
-  // ✅ CRITICAL FIX: Initialize as empty arrays - only populate with defaults if no saved data
-  const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
-  const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
-  
-  // ✅ CRITICAL FIX: Initialize as empty array - only populate with defaults if no saved data
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
+  const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
+  const [mortgageToBeRepaid, setMortgageToBeRepaid] = useState(false);
+  const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
+  const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
+  const [useSaleFunds, setUseSaleFunds] = useState(false);
 
-  // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
-  async function saveSellScreenStructure() {
-    try {
-      const data = {
-        debtItems: debtItems,
-        commissionTiers: commissionTiers,
-      };
-      await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen structure to AsyncStorage:', data);
-    } catch (error) {
-      console.error('Error saving Sell screen data:', error);
+  const totalDebt = useMemo(() => {
+    return debtItems.reduce((sum, item) => {
+      const amount = parseFloat(item.amount) || 0;
+      return sum + amount;
+    }, 0);
+  }, [debtItems]);
+
+  const totalCommission = useMemo(() => {
+    const price = parseFloat(salePrice) || 0;
+    if (price === 0 || commissionTiers.length === 0) return 0;
+
+    let commission = 0;
+    let remainingPrice = price;
+
+    const sortedTiers = [...commissionTiers].sort((a, b) => {
+      const fromA = parseFloat(a.fromPrice) || 0;
+      const fromB = parseFloat(b.fromPrice) || 0;
+      return fromA - fromB;
+    });
+
+    sortedTiers.forEach((tier, index) => {
+      const from = parseFloat(tier.fromPrice) || 0;
+      const to = tier.toPrice ? parseFloat(tier.toPrice) : (index === sortedTiers.length - 1 ? price : Infinity);
+      const rate = parseFloat(tier.rate) / 100 || 0;
+
+      if (remainingPrice > from) {
+        const applicableAmount = Math.min(remainingPrice, to) - from;
+        if (applicableAmount > 0) {
+          commission += applicableAmount * rate;
+          remainingPrice -= applicableAmount;
+        }
+      }
+    });
+
+    return commission;
+  }, [salePrice, commissionTiers]);
+
+  const netProceedsValue = useMemo(() => {
+    const price = parseFloat(salePrice) || 0;
+    const advertising = parseFloat(advertisingCosts) || 0;
+    const legal = parseFloat(legalFees) || 0;
+    const commission = totalCommission;
+
+    let debtToDeduct = 0;
+    if (mortgageToBeRepaid) {
+      if (mortgageRepaidInFull) {
+        debtToDeduct = totalDebt;
+      } else {
+        debtToDeduct = parseFloat(partialRepaymentAmount) || 0;
+      }
     }
-  }
 
-  // Load data on mount
+    return price - advertising - legal - commission - debtToDeduct;
+  }, [salePrice, advertisingCosts, legalFees, totalCommission, mortgageToBeRepaid, mortgageRepaidInFull, partialRepaymentAmount, totalDebt]);
+
   useEffect(() => {
-    console.log('Sell screen mounted - loading persisted values');
+    setNetProceeds(netProceedsValue);
+  }, [netProceedsValue, setNetProceeds]);
+
+  useEffect(() => {
+    if (useSaleFunds) {
+      setUseSaleFundsForPurchase(true);
+    } else {
+      setUseSaleFundsForPurchase(false);
+    }
+  }, [useSaleFunds]);
+
+  const setUseSaleFundsForPurchase = async (value: boolean) => {
+    try {
+      await AsyncStorage.setItem('useSaleFundsForPurchase', JSON.stringify(value));
+      console.log('Set useSaleFundsForPurchase:', value);
+    } catch (error) {
+      console.error('Error saving useSaleFundsForPurchase:', error);
+    }
+  };
+
+  const saveSellScreenStructure = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem('sell_commissionTiers', JSON.stringify(commissionTiers));
+      await AsyncStorage.setItem('sell_debtItems', JSON.stringify(debtItems));
+      console.log('Saved sell screen structure');
+    } catch (error) {
+      console.error('Error saving sell screen structure:', error);
+    }
+  }, [commissionTiers, debtItems]);
+
+  useEffect(() => {
+    saveSellScreenStructure();
+  }, [debtItems, commissionTiers]);
+
+  const loadAllNumericValues = useCallback(async () => {
+    const loadedSalePrice = await loadNumericValue(SELL_KEYS.SALE_PRICE, '');
+    const loadedCustomIncrement = await loadNumericValue(SELL_KEYS.CUSTOM_INCREMENT, '');
+    const loadedAdvertising = await loadNumericValue(SELL_KEYS.ADVERTISING_COSTS, '');
+    const loadedLegalFees = await loadNumericValue(SELL_KEYS.LEGAL_FEES, '');
+    const loadedPartialRepayment = await loadNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, '');
+
+    setSalePrice(loadedSalePrice);
+    setCustomIncrement(loadedCustomIncrement);
+    setAdvertisingCosts(loadedAdvertising);
+    setLegalFees(loadedLegalFees);
+    setPartialRepaymentAmount(loadedPartialRepayment);
+
+    console.log('Loaded numeric values:', {
+      salePrice: loadedSalePrice,
+      advertising: loadedAdvertising,
+      legalFees: loadedLegalFees,
+      partialRepayment: loadedPartialRepayment
+    });
+  }, []);
+
+  const loadAllToggleValues = useCallback(async () => {
+    const loadedMortgageToBeRepaid = await loadToggleValue(SELL_KEYS.MORTGAGE_TO_BE_REPAID, false);
+    const loadedMortgageRepaidInFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_IN_FULL, true);
+    const loadedUseSaleFunds = await loadToggleValue(SELL_KEYS.USE_SALE_FUNDS, false);
+
+    setMortgageToBeRepaid(loadedMortgageToBeRepaid);
+    setMortgageRepaidInFull(loadedMortgageRepaidInFull);
+    setUseSaleFunds(loadedUseSaleFunds);
+
+    console.log('Loaded toggle values:', {
+      mortgageToBeRepaid: loadedMortgageToBeRepaid,
+      mortgageRepaidInFull: loadedMortgageRepaidInFull,
+      useSaleFunds: loadedUseSaleFunds
+    });
+  }, []);
+
+  const loadSellScreenData = useCallback(async () => {
+    try {
+      const savedCommissionTiers = await AsyncStorage.getItem('sell_commissionTiers');
+      const savedDebtItems = await AsyncStorage.getItem('sell_debtItems');
+
+      if (savedCommissionTiers) {
+        const parsedTiers = JSON.parse(savedCommissionTiers);
+        setCommissionTiers(parsedTiers);
+        console.log('Loaded commission tiers:', parsedTiers);
+      } else if (commissionTiers.length === 0) {
+        const defaultTiers: CommissionTier[] = [
+          { id: '1', fromPrice: '0', toPrice: '', rate: '2.5' }
+        ];
+        setCommissionTiers(defaultTiers);
+        console.log('Initialized default commission tiers');
+      }
+
+      if (savedDebtItems) {
+        const parsedDebts = JSON.parse(savedDebtItems);
+        setDebtItems(parsedDebts);
+        console.log('Loaded debt items:', parsedDebts);
+      } else if (debtItems.length === 0) {
+        const defaultDebts: DebtItem[] = [
+          { id: '1', amount: '' }
+        ];
+        setDebtItems(defaultDebts);
+        console.log('Initialized default debt items');
+      }
+    } catch (error) {
+      console.error('Error loading sell screen data:', error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Sell screen focused - loading data');
+      loadAllNumericValues();
+      loadAllToggleValues();
+      loadSellScreenData();
+    }, [loadAllNumericValues, loadAllToggleValues, loadSellScreenData])
+  );
+
+  useEffect(() => {
     loadAllNumericValues();
     loadAllToggleValues();
     loadSellScreenData();
   }, []);
 
-  // ✅ CRITICAL FIX: Save structure whenever arrays change
-  useEffect(() => {
-    if (debtItems.length > 0 || commissionTiers.length > 0) {
-      console.log('Commission tiers or debt items changed - saving structure with current values');
-      saveSellScreenStructure();
-    }
-  }, [debtItems, commissionTiers]);
-
-  // Reload data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Sell screen focused - reloading persisted values');
-      loadAllNumericValues();
-      loadAllToggleValues();
-      loadSellScreenData();
-    }, [])
-  );
-
-  // Load all numeric values from localStorage
-  const loadAllNumericValues = async () => {
-    console.log('Loading all numeric values from localStorage');
-    
-    // Load sale price - using fixed key SELL_KEYS.SALE_PRICE
-    const savedPrice = await loadNumericValue(SELL_KEYS.SALE_PRICE);
-    if (savedPrice !== null) {
-      const numValue = parseFloat(savedPrice);
-      if (!isNaN(numValue) && numValue > 0) {
-        setSalePrice(numValue);
-        setSalePriceText(numValue.toLocaleString('en-US'));
-      }
-    }
-    
-    // Load price increment
-    const savedIncrement = await loadNumericValue(SELL_KEYS.PRICE_INCREMENT);
-    if (savedIncrement !== null) {
-      const numValue = parseFloat(savedIncrement);
-      if (!isNaN(numValue)) {
-        setPriceIncrement(numValue);
-      }
-    }
-    
-    // Load custom increment
-    const savedCustomIncrement = await loadNumericValue(SELL_KEYS.CUSTOM_INCREMENT);
-    if (savedCustomIncrement !== null) {
-      setCustomIncrement(savedCustomIncrement);
-    }
-    
-    // Load advertising costs
-    const savedAdvertising = await loadNumericValue(SELL_KEYS.ADVERTISING_COSTS);
-    if (savedAdvertising !== null) {
-      setAdvertisingCosts(savedAdvertising);
-    }
-    
-    // Load legal fees
-    const savedLegal = await loadNumericValue(SELL_KEYS.LEGAL_FEES);
-    if (savedLegal !== null) {
-      setLegalFees(savedLegal);
-    }
-    
-    // Load partial repayment amount
-    const savedPartial = await loadNumericValue(SELL_KEYS.PARTIAL_REPAYMENT);
-    if (savedPartial !== null) {
-      setPartialRepaymentAmount(savedPartial);
-    }
-  };
-
-  // Load all toggle values from localStorage
-  const loadAllToggleValues = async () => {
-    console.log('Loading all toggle values from localStorage');
-    
-    // Load Mortgage to be repaid toggle
-    const mortgageRepaid = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, false);
-    setMortgageToBeRepaid(mortgageRepaid);
-    
-    // Load Mortgage repaid in full toggle
-    const mortgageRepaidFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, true);
-    setMortgageRepaidInFull(mortgageRepaidFull);
-    
-    // Load Use sale funds toggle
-    const useSaleFundsToggle = await loadToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, false);
-    setUseSaleFunds(useSaleFundsToggle);
-    
-    console.log('Loaded toggle values:', {
-      mortgageRepaid,
-      mortgageRepaidFull,
-      useSaleFundsToggle
-    });
-  };
-
-  const loadSellScreenData = async () => {
-    try {
-      console.log('Loading Sell screen data from AsyncStorage');
-      const savedData = await AsyncStorage.getItem('sellScreenData');
-      if (savedData) {
-        const data = JSON.parse(savedData);
-        console.log('Loaded Sell screen data:', data);
-        
-        // ✅ CRITICAL FIX: Load debt items directly without any transformation
-        if (data.debtItems && data.debtItems.length > 0) {
-          console.log('Loaded debt items with amounts (no transformation):', data.debtItems);
-          setDebtItems(data.debtItems);
-        } else {
-          // ✅ CRITICAL FIX: Only initialize with default if no saved data
-          console.log('No saved debt items - initializing with default');
-          setDebtItems([{ id: '1', amount: '' }]);
-        }
-        
-        // ✅ CRITICAL FIX: Load commission tiers directly without any transformation
-        if (data.commissionTiers && data.commissionTiers.length > 0) {
-          console.log('Loaded commission tiers with values (no transformation):', data.commissionTiers);
-          setCommissionTiers(data.commissionTiers);
-        } else {
-          // ✅ CRITICAL FIX: Only initialize with default if no saved data
-          console.log('No saved commission tiers - initializing with default');
-          setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-        }
-      } else {
-        // ✅ CRITICAL FIX: No saved data at all - initialize with defaults
-        console.log('No saved Sell screen data found - using defaults');
-        setDebtItems([{ id: '1', amount: '' }]);
-        setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-      }
-    } catch (error) {
-      console.error('Error loading Sell screen data:', error);
-      // ✅ CRITICAL FIX: On error, initialize with defaults
-      setDebtItems([{ id: '1', amount: '' }]);
-      setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-    }
-  };
-
   const handleMortgageToBeRepaidToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage to be repaid to:', value);
     setMortgageToBeRepaid(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
+    await saveToggleValue(SELL_KEYS.MORTGAGE_TO_BE_REPAID, value);
+    console.log('Mortgage to be repaid:', value);
   };
 
   const handleMortgageRepaidInFullToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage repaid in full to:', value);
     setMortgageRepaidInFull(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
+    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_IN_FULL, value);
+    console.log('Mortgage repaid in full:', value);
   };
 
   const handleUseSaleFundsToggle = async (value: boolean) => {
-    console.log('User toggled Use sale funds to:', value);
     setUseSaleFunds(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
-    await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
+    await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS, value);
+    console.log('Use sale funds for purchase:', value);
   };
 
-  // Memoized commission calculation - only recalculates when dependencies change
-  const calculateCommission = useCallback((price: number): number => {
-    // If only one tier and no from/to values, apply rate to entire sale price
-    if (commissionTiers.length === 1) {
-      const tier = commissionTiers[0];
-      const hasNoRange = !tier.fromPrice && !tier.toPrice;
-      if (hasNoRange) {
-        const rate = parseFloat(tier.rate) || 0;
-        return (price * rate) / 100;
-      }
-    }
-
-    // Multiple tiers or tiers with ranges
-    let totalCommission = 0;
-    const sortedTiers = [...commissionTiers].sort((a, b) => 
-      (parseFloat(a.fromPrice) || 0) - (parseFloat(b.fromPrice) || 0)
-    );
-    
-    for (let i = 0; i < sortedTiers.length; i++) {
-      const tier = sortedTiers[i];
-      const from = parseFloat(tier.fromPrice) || 0;
-      // If no "to" value and this is the last tier, use sale price as upper limit
-      const isLastTier = i === sortedTiers.length - 1;
-      const to = tier.toPrice ? parseFloat(tier.toPrice) : (isLastTier ? price : Infinity);
-      const rate = parseFloat(tier.rate) || 0;
-      
-      if (price > from) {
-        const applicableAmount = Math.min(price, to) - from;
-        if (applicableAmount > 0) {
-          totalCommission += (applicableAmount * rate) / 100;
-        }
-      }
-    }
-    
-    return totalCommission;
-  }, [commissionTiers]);
-
   const handlePriceTextChange = (text: string) => {
-    console.log('User changed sale price:', text);
-    const cleanText = text.replace(/[^0-9]/g, '');
-    const numValue = parseFloat(cleanText);
-    if (!isNaN(numValue) && numValue >= 0) {
-      setSalePrice(numValue);
-      const formatted = numValue.toLocaleString('en-US');
-      setSalePriceText(formatted);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-      saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
-    } else if (cleanText === '') {
-      setSalePrice(0);
-      setSalePriceText('');
-      saveNumericValue(SELL_KEYS.SALE_PRICE, '0');
-    }
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setSalePrice(cleaned);
+    saveNumericValue(SELL_KEYS.SALE_PRICE, cleaned);
   };
 
   const handlePriceBlur = () => {
-    if (salePrice > 0) {
-      const formatted = salePrice.toLocaleString('en-US');
-      setSalePriceText(formatted);
-    }
-    Keyboard.dismiss();
+    saveNumericValue(SELL_KEYS.SALE_PRICE, salePrice);
   };
 
   const adjustPrice = (amount: number) => {
-    console.log('User adjusted price by:', amount);
-    const newPrice = Math.max(0, salePrice + amount);
-    setSalePrice(newPrice);
-    const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
-    setSalePriceText(formatted);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
-    saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
+    const currentPrice = parseFloat(salePrice) || 0;
+    const newPrice = Math.max(0, currentPrice + amount);
+    const newPriceStr = newPrice.toString();
+    setSalePrice(newPriceStr);
+    saveNumericValue(SELL_KEYS.SALE_PRICE, newPriceStr);
+    console.log('Adjusted sale price:', newPriceStr);
   };
 
   const handleCustomIncrementSubmit = () => {
-    console.log('User submitted custom increment:', customIncrement);
-    const value = parseFloat(customIncrement);
-    if (!isNaN(value) && value > 0) {
-      setPriceIncrement(value);
-      setShowCustomIncrementInput(false);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
-      saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
+    const increment = parseFloat(customIncrement);
+    if (!isNaN(increment) && increment > 0) {
+      setSelectedIncrement(increment);
       saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
-    } else {
-      setShowCustomIncrementInput(false);
+      console.log('Custom increment set:', increment);
     }
+    Keyboard.dismiss();
   };
 
-  const handleTapOutside = useCallback(() => {
-    console.log('User tapped outside - dismissing keyboard');
-    Keyboard.dismiss();
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    console.log('User scrolled - dismissing keyboard');
-    Keyboard.dismiss();
-  }, []);
-
-  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
-  
-  // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
-  const fixedFontSize = 48 * 0.7;
-  
-  // Memoized calculations - only recalculate when dependencies change
-  const price = salePrice;
-  const commission = useMemo(() => calculateCommission(price), [calculateCommission, price]);
-  const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
-  const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
-  
-  // ✅ CRITICAL FIX: Calculate total debt from all debt items (convert strings to numbers ONLY for calculation)
-  const totalDebt = useMemo(() => 
-    debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
-    [debtItems]
-  );
-  
-  // ✅ CRITICAL FIX: Determine how much debt to deduct
-  const debtToDeduct = useMemo(() => {
-    if (!mortgageToBeRepaid) {
-      return 0;
-    }
-    if (mortgageRepaidInFull) {
-      return totalDebt;
-    }
-    return parseFloat(partialRepaymentAmount) || 0;
-  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
-  
-  const dischargeFee = useMemo(() => 
-    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
-    [mortgageToBeRepaid, debtToDeduct]
-  );
-
-  const totalCosts = useMemo(() => 
-    commission + advertising + legal + dischargeFee,
-    [commission, advertising, legal, dischargeFee]
-  );
-  
-  const netProceedsValue = useMemo(() => 
-    price - totalCosts - debtToDeduct,
-    [price, totalCosts, debtToDeduct]
-  );
-
-  // Update context only when net proceeds changes
-  useEffect(() => {
-    console.log('Sell screen: Net proceeds updated to', netProceedsValue);
-    setNetProceeds(netProceedsValue);
-  }, [netProceedsValue, setNetProceeds]);
-
-  // Update context only when use sale funds toggle changes
-  useEffect(() => {
-    console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
-    setUseSaleFundsForPurchase(useSaleFunds);
-  }, [useSaleFunds, setUseSaleFundsForPurchase]);
-
   const addCommissionTier = () => {
-    const newId = (commissionTiers.length + 1).toString();
-    const lastTier = commissionTiers[commissionTiers.length - 1];
-    const newFrom = lastTier && lastTier.toPrice ? lastTier.toPrice : '0';
-    
-    const updatedTiers = [
-      ...commissionTiers,
-      { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
-    ];
-    setCommissionTiers(updatedTiers);
-    console.log('Added commission tier with id:', newId, 'fromPrice:', newFrom);
+    const newTier: CommissionTier = {
+      id: Date.now().toString(),
+      fromPrice: '',
+      toPrice: '',
+      rate: ''
+    };
+    setCommissionTiers([...commissionTiers, newTier]);
+    console.log('Added commission tier');
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
-    console.log('User updated commission tier', id, field, 'to', value);
-    const updatedTiers = commissionTiers.map(tier => 
+    setCommissionTiers(commissionTiers.map(tier =>
       tier.id === id ? { ...tier, [field]: value } : tier
-    );
-    
-    // Auto-populate next tier's "from" when current tier's "to" is updated
-    if (field === 'toPrice' && value) {
-      const currentIndex = updatedTiers.findIndex(t => t.id === id);
-      if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
-        updatedTiers[currentIndex + 1].fromPrice = value;
-      }
-    }
-    
-    setCommissionTiers(updatedTiers);
-    
-    // ✅ CRITICAL FIX: Save immediately after updating state
-    // This ensures the data persists even if the user navigates away
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
+    ));
   };
 
   const removeCommissionTier = (id: string) => {
-    if (commissionTiers.length > 1) {
-      const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
-      setCommissionTiers(updatedTiers);
-      console.log('Removed commission tier:', id);
-    }
+    setCommissionTiers(commissionTiers.filter(tier => tier.id !== id));
+    console.log('Removed commission tier:', id);
   };
 
   const addDebtItem = () => {
-    const newId = (debtItems.length + 1).toString();
-    console.log('Adding new debt item with id:', newId);
-    const updatedItems = [...debtItems, { id: newId, amount: '' }];
-    setDebtItems(updatedItems);
+    const newDebt: DebtItem = {
+      id: Date.now().toString(),
+      amount: ''
+    };
+    setDebtItems([...debtItems, newDebt]);
+    console.log('Added debt item');
   };
 
   const updateDebtItem = (id: string, amount: string) => {
-    console.log('User updated debt item', id, 'with amount', amount);
-    const updatedItems = debtItems.map(item => 
+    setDebtItems(debtItems.map(item =>
       item.id === id ? { ...item, amount } : item
-    );
-    setDebtItems(updatedItems);
-    
-    // ✅ CRITICAL FIX: Save immediately after updating state
-    // This ensures the data persists even if the user navigates away
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
+    ));
   };
 
   const removeDebtItem = (id: string) => {
-    if (debtItems.length > 1) {
-      console.log('Removing debt item:', id);
-      const updatedItems = debtItems.filter(item => item.id !== id);
-      setDebtItems(updatedItems);
-    }
+    setDebtItems(debtItems.filter(item => item.id !== id));
+    console.log('Removed debt item:', id);
   };
 
-  const formatMoney = useCallback((value: number): string => {
-    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }, []);
-
   const handleIncrementChange = (value: number) => {
-    console.log('User changed increment to:', value);
-    setPriceIncrement(value);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
-    saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
+    setSelectedIncrement(value);
+    console.log('Selected increment:', value);
   };
 
   const handleAdvertisingChange = (text: string) => {
-    console.log('User changed advertising costs:', text);
-    setAdvertisingCosts(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setAdvertisingCosts(cleaned);
+    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, cleaned);
   };
 
   const handleLegalFeesChange = (text: string) => {
-    console.log('User changed legal fees:', text);
-    setLegalFees(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setLegalFees(cleaned);
+    saveNumericValue(SELL_KEYS.LEGAL_FEES, cleaned);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
-    console.log('User changed partial repayment amount:', text);
-    setPartialRepaymentAmount(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setPartialRepaymentAmount(cleaned);
+    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, cleaned);
+  };
+
+  const formatMoney = (value: number) => {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency: 'AUD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow-back"
-            size={24}
-            color={colors.text}
-          />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sell</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        <View style={commonStyles.card}>
-          <View style={styles.toggleSection}>
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
-              <Switch
-                value={mortgageToBeRepaid}
-                onValueChange={handleMortgageToBeRepaidToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-            
-            {mortgageToBeRepaid && (
-              <>
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
-                  <Switch
-                    value={mortgageRepaidInFull}
-                    onValueChange={handleMortgageRepaidInFullToggle}
-                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                    thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
-                  />
-                </View>
-              </>
-            )}
-
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
-              <Switch
-                value={useSaleFunds}
-                onValueChange={handleUseSaleFundsToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={[commonStyles.card, styles.priceCard]}>
-          <Text style={styles.priceLabel}>Sale Price</Text>
-          <View style={styles.priceInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
-            <TextInput
-              style={[
-                styles.priceInput,
-                {
-                  fontSize: fixedFontSize,
-                  fontFamily: 'CourierPrime_700Bold',
-                  letterSpacing: -0.5,
-                  paddingLeft: 20,
-                  paddingRight: 8,
-                  height: 60,
-                  flexShrink: 0,
-                  overflow: 'visible',
-                  textAlign: 'right',
-                },
-              ]}
-              value={salePriceText}
-              onChangeText={handlePriceTextChange}
-              onBlur={handlePriceBlur}
-              keyboardType="numeric"
-              selectTextOnFocus
-              placeholder=""
-            />
-          </View>
-          
-          <View style={styles.priceControls}>
-            <TouchableOpacity 
-              style={styles.priceButton}
-              onPress={() => adjustPrice(-priceIncrement)}
-            >
-              <IconSymbol
-                ios_icon_name="minus.circle.fill"
-                android_material_icon_name="remove-circle"
-                size={44}
-                color="#424242"
-              />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          onScroll={Keyboard.dismiss}
+          scrollEventThrottle={16}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <IconSymbol ios_icon_name="chevron.left" android_material_icon_name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-
-            <View style={styles.incrementContainer}>
-              <Text style={styles.incrementLabel}>Increment</Text>
-              <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
-            </View>
-
-            <TouchableOpacity 
-              style={styles.priceButton}
-              onPress={() => adjustPrice(priceIncrement)}
-            >
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={44}
-                color="#424242"
-              />
-            </TouchableOpacity>
+            <Text style={styles.title}>Sale Calculator</Text>
+            <View style={styles.placeholder} />
           </View>
 
-          <View style={styles.incrementSelector}>
-            <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.incrementOptions}
-            >
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sale Price</Text>
+            <View style={styles.priceInputContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.priceInput}
+                value={salePrice}
+                onChangeText={handlePriceTextChange}
+                onBlur={handlePriceBlur}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.incrementButtons}>
               <TouchableOpacity
-                style={[
-                  styles.incrementOption,
-                  showCustomIncrementInput && styles.incrementOptionActive
-                ]}
-                onPress={() => setShowCustomIncrementInput(!showCustomIncrementInput)}
+                style={styles.incrementButton}
+                onPress={() => adjustPrice(-selectedIncrement)}
               >
-                <Text style={[
-                  styles.incrementOptionText,
-                  showCustomIncrementInput && styles.incrementOptionTextActive
-                ]}>
-                  Custom
-                </Text>
+                <Text style={styles.incrementButtonText}>-{formatMoney(selectedIncrement)}</Text>
               </TouchableOpacity>
-              {incrementOptions.map((option, index) => {
-                const displayText = option >= 1000 
-                  ? `$${(option / 1000).toFixed(option % 1000 === 0 ? 0 : 1)}k`
-                  : `$${option}`;
-                return (
-                  <React.Fragment key={index}>
-                  <TouchableOpacity
-                    style={[
-                      styles.incrementOption,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
-                    ]}
-                    onPress={() => {
-                      handleIncrementChange(option);
-                      setShowCustomIncrementInput(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.incrementOptionText,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
-                    ]}>
-                      {displayText}
-                    </Text>
-                  </TouchableOpacity>
-                  </React.Fragment>
-                );
-              })}
-            </ScrollView>
-          </View>
+              <TouchableOpacity
+                style={styles.incrementButton}
+                onPress={() => adjustPrice(selectedIncrement)}
+              >
+                <Text style={styles.incrementButtonText}>+{formatMoney(selectedIncrement)}</Text>
+              </TouchableOpacity>
+            </View>
 
-          {showCustomIncrementInput && (
+            <View style={styles.incrementSelector}>
+              {[1000, 5000, 10000, 25000, 50000].map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[
+                    styles.incrementOption,
+                    selectedIncrement === value && styles.incrementOptionSelected
+                  ]}
+                  onPress={() => handleIncrementChange(value)}
+                >
+                  <Text style={[
+                    styles.incrementOptionText,
+                    selectedIncrement === value && styles.incrementOptionTextSelected
+                  ]}>
+                    {formatMoney(value)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={styles.customIncrementContainer}>
               <TextInput
                 style={styles.customIncrementInput}
-                placeholder="Enter custom increment"
-                keyboardType="numeric"
                 value={customIncrement}
-                onChangeText={(text) => {
-                  setCustomIncrement(text);
-                  // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-                  saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
-                }}
-                onBlur={() => Keyboard.dismiss()}
+                onChangeText={setCustomIncrement}
+                onSubmitEditing={handleCustomIncrementSubmit}
+                keyboardType="numeric"
+                placeholder="Custom increment"
+                placeholderTextColor={colors.textSecondary}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.customIncrementButton}
                 onPress={handleCustomIncrementSubmit}
               >
                 <Text style={styles.customIncrementButtonText}>Set</Text>
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-
-        <View style={commonStyles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={commonStyles.subtitle}>Agent Commission</Text>
-            <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={24}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
           </View>
 
-          {commissionTiers.map((tier, index) => (
-            <React.Fragment key={index}>
-            <View style={styles.tierContainer}>
-              <View style={styles.tierHeader}>
-                <Text style={styles.tierLabel}>Tier {index + 1}</Text>
-                {commissionTiers.length > 1 && (
-                  <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={20}
-                      color={colors.secondary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-              
-              <View style={styles.tierRow}>
-                {commissionTiers.length > 1 && (
-                  <>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Advertising Costs</Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.input}
+                value={advertisingCosts}
+                onChangeText={handleAdvertisingChange}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Legal Fees</Text>
+            <View style={styles.inputContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.input}
+                value={legalFees}
+                onChangeText={handleLegalFeesChange}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Agent Commission</Text>
+              <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
+                <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add-circle" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            {commissionTiers.map((tier, index) => (
+              <View key={tier.id} style={styles.tierContainer}>
+                <View style={styles.tierRow}>
+                  <View style={styles.tierInputGroup}>
+                    <Text style={styles.tierLabel}>From</Text>
                     <View style={styles.tierInputContainer}>
-                      <Text style={styles.tierInputLabel}>From ($)</Text>
+                      <Text style={styles.currencySymbol}>$</Text>
                       <TextInput
-                        style={[commonStyles.input, styles.tierInput]}
-                        placeholder="0"
-                        keyboardType="numeric"
+                        style={styles.tierInput}
                         value={tier.fromPrice}
-                        onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
-                        onBlur={() => Keyboard.dismiss()}
-                        adjustsFontSizeToFit
-                        numberOfLines={1}
-                        minimumFontScale={0.5}
-                      />
-                    </View>
-                    
-                    <View style={styles.tierInputContainer}>
-                      <Text style={styles.tierInputLabel}>To ($)</Text>
-                      <TextInput
-                        style={[commonStyles.input, styles.tierInput]}
-                        placeholder="500000"
+                        onChangeText={(text) => updateCommissionTier(tier.id, 'fromPrice', text.replace(/[^0-9]/g, ''))}
                         keyboardType="numeric"
-                        value={tier.toPrice}
-                        onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
-                        onBlur={() => Keyboard.dismiss()}
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
                         adjustsFontSizeToFit
-                        numberOfLines={1}
-                        minimumFontScale={0.5}
+                        minimumFontScale={0.7}
                       />
                     </View>
-                  </>
-                )}
-                
-                <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
-                  <Text style={styles.tierInputLabel}>Rate (%)</Text>
-                  <TextInput
-                    style={[commonStyles.input, styles.tierInput]}
-                    placeholder="2.5"
-                    keyboardType="numeric"
-                    value={tier.rate}
-                    onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
-                    onBlur={() => Keyboard.dismiss()}
-                    adjustsFontSizeToFit
-                    numberOfLines={1}
-                    minimumFontScale={0.5}
-                  />
+                  </View>
+                  <View style={styles.tierInputGroup}>
+                    <Text style={styles.tierLabel}>To</Text>
+                    <View style={styles.tierInputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        style={styles.tierInput}
+                        value={tier.toPrice}
+                        onChangeText={(text) => updateCommissionTier(tier.id, 'toPrice', text.replace(/[^0-9]/g, ''))}
+                        keyboardType="numeric"
+                        placeholder="Max"
+                        placeholderTextColor={colors.textSecondary}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.7}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.tierInputGroup}>
+                    <Text style={styles.tierLabel}>Rate</Text>
+                    <View style={styles.tierInputContainer}>
+                      <TextInput
+                        style={styles.tierInput}
+                        value={tier.rate}
+                        onChangeText={(text) => updateCommissionTier(tier.id, 'rate', text.replace(/[^0-9.]/g, ''))}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.7}
+                      />
+                      <Text style={styles.percentSymbol}>%</Text>
+                    </View>
+                  </View>
+                  {commissionTiers.length > 1 && (
+                    <TouchableOpacity onPress={() => removeCommissionTier(tier.id)} style={styles.removeButton}>
+                      <IconSymbol ios_icon_name="minus.circle.fill" android_material_icon_name="remove-circle" size={24} color={colors.error} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
+            ))}
+            <View style={styles.commissionTotal}>
+              <Text style={styles.commissionTotalLabel}>Total Commission:</Text>
+              <Text style={styles.commissionTotalValue}>{formatMoney(totalCommission)}</Text>
             </View>
-            </React.Fragment>
-          ))}
-        </View>
-
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.label}>Advertising Costs</Text>
-          <View style={styles.inputWithPrefix}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={[commonStyles.input, styles.inputWithPrefixField]}
-              placeholder="Enter advertising costs"
-              keyboardType="numeric"
-              value={advertisingCosts}
-              onChangeText={handleAdvertisingChange}
-              onBlur={() => Keyboard.dismiss()}
-            />
           </View>
 
-          <Text style={commonStyles.label}>Legal Fees</Text>
-          <View style={styles.inputWithPrefix}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={[commonStyles.input, styles.inputWithPrefixField]}
-              placeholder="Enter legal fees"
-              keyboardType="numeric"
-              value={legalFees}
-              onChangeText={handleLegalFeesChange}
-              onBlur={() => Keyboard.dismiss()}
-            />
-          </View>
-
-          <View style={styles.sectionHeader}>
-            <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
-            <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={20}
-                color={colors.primary}
+          <View style={styles.section}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.sectionTitle}>Mortgage to be Repaid?</Text>
+              <Switch
+                value={mortgageToBeRepaid}
+                onValueChange={handleMortgageToBeRepaidToggle}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.background}
               />
-            </TouchableOpacity>
-          </View>
+            </View>
 
-          {debtItems.map((item, index) => (
-            <React.Fragment key={index}>
-            <View style={styles.debtItemRow}>
-              <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
-                <Text style={styles.inputPrefix}>$</Text>
-                <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder={`Debt ${index + 1}`}
-                  keyboardType="numeric"
-                  value={item.amount}
-                  onChangeText={(value) => updateDebtItem(item.id, value)}
-                  onBlur={() => Keyboard.dismiss()}
-                />
-              </View>
-              {debtItems.length > 1 && (
-                <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.deleteButton}>
-                  <IconSymbol
-                    ios_icon_name="minus.circle.fill"
-                    android_material_icon_name="remove-circle"
-                    size={24}
-                    color="#f44336"
+            {mortgageToBeRepaid && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Mortgage Balance / Other Debt</Text>
+                  <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
+                    <IconSymbol ios_icon_name="plus.circle.fill" android_material_icon_name="add-circle" size={24} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+                {debtItems.map((item) => (
+                  <View key={item.id} style={styles.debtItemContainer}>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={item.amount}
+                        onChangeText={(text) => updateDebtItem(item.id, text.replace(/[^0-9]/g, ''))}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
+                      />
+                    </View>
+                    {debtItems.length > 1 && (
+                      <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.removeButton}>
+                        <IconSymbol ios_icon_name="minus.circle.fill" android_material_icon_name="remove-circle" size={24} color={colors.error} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+                <View style={styles.debtTotal}>
+                  <Text style={styles.debtTotalLabel}>Total Debt:</Text>
+                  <Text style={styles.debtTotalValue}>{formatMoney(totalDebt)}</Text>
+                </View>
+
+                <View style={styles.toggleRow}>
+                  <Text style={styles.toggleLabel}>Repaid in Full?</Text>
+                  <Switch
+                    value={mortgageRepaidInFull}
+                    onValueChange={handleMortgageRepaidInFullToggle}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor={colors.background}
                   />
-                </TouchableOpacity>
-              )}
-            </View>
-            </React.Fragment>
-          ))}
+                </View>
 
-          {mortgageToBeRepaid && !mortgageRepaidInFull && (
-            <>
-              <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-              <View style={styles.inputWithPrefix}>
-                <Text style={styles.inputPrefix}>$</Text>
-                <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder="Enter partial repayment amount"
-                  keyboardType="numeric"
-                  value={partialRepaymentAmount}
-                  onChangeText={handlePartialRepaymentChange}
-                  onBlur={() => Keyboard.dismiss()}
-                />
+                {!mortgageRepaidInFull && (
+                  <View style={styles.partialRepaymentContainer}>
+                    <Text style={styles.partialRepaymentLabel}>Partial Repayment Amount</Text>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.currencySymbol}>$</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={partialRepaymentAmount}
+                        onChangeText={handlePartialRepaymentChange}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
+                      />
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.toggleRow}>
+              <Text style={styles.sectionTitle}>Use Sale Funds for Purchase?</Text>
+              <Switch
+                value={useSaleFunds}
+                onValueChange={handleUseSaleFundsToggle}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.background}
+              />
+            </View>
+          </View>
+
+          <View style={styles.calculationSection}>
+            <Text style={styles.calculationTitle}>Net Proceeds</Text>
+            <View style={styles.calculationBreakdown}>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Sale Price</Text>
+                <Text style={styles.calculationValue}>{formatMoney(parseFloat(salePrice) || 0)}</Text>
               </View>
-            </>
-          )}
-        </View>
-
-        <View style={[commonStyles.card, styles.resultsCard]}>
-          <Text style={styles.resultsTitle}>Cost Breakdown</Text>
-          
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Sale Price</Text>
-            <Text style={styles.resultValue}>${formatMoney(price)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Agent Commission</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Advertising Costs</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Legal Fees</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
-          </View>
-
-          {dischargeFee > 0 && (
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
-            </View>
-          )}
-
-          {mortgageToBeRepaid && debtItems.map((item, index) => {
-            const debtAmount = parseFloat(item.amount) || 0;
-            
-            if (debtAmount === 0) {
-              return null;
-            }
-            
-            const labelText = `Mortgage/Debt ${index + 1}`;
-            
-            let displayAmount = 0;
-            if (mortgageRepaidInFull) {
-              displayAmount = debtAmount;
-            } else {
-              const partialAmount = parseFloat(partialRepaymentAmount) || 0;
-              let remainingPartial = partialAmount;
-              
-              for (let i = 0; i <= index; i++) {
-                const currentDebt = parseFloat(debtItems[i].amount) || 0;
-                if (i < index) {
-                  remainingPartial -= currentDebt;
-                } else {
-                  displayAmount = Math.min(currentDebt, Math.max(0, remainingPartial));
-                }
-              }
-            }
-            
-            return (
-              <React.Fragment key={index}>
-              {displayAmount > 0 && (
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>{labelText}</Text>
-                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Advertising Costs</Text>
+                <Text style={styles.calculationValueNegative}>-{formatMoney(parseFloat(advertisingCosts) || 0)}</Text>
+              </View>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Legal Fees</Text>
+                <Text style={styles.calculationValueNegative}>-{formatMoney(parseFloat(legalFees) || 0)}</Text>
+              </View>
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationLabel}>Agent Commission</Text>
+                <Text style={styles.calculationValueNegative}>-{formatMoney(totalCommission)}</Text>
+              </View>
+              {mortgageToBeRepaid && (
+                <View style={styles.calculationRow}>
+                  <Text style={styles.calculationLabel}>
+                    {mortgageRepaidInFull ? 'Mortgage Balance / Other Debt' : 'Partial Repayment'}
+                  </Text>
+                  <Text style={styles.calculationValueNegative}>
+                    -{formatMoney(mortgageRepaidInFull ? totalDebt : (parseFloat(partialRepaymentAmount) || 0))}
+                  </Text>
                 </View>
               )}
-              </React.Fragment>
-            );
-          })}
-
-          <View style={styles.divider} />
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Costs</Text>
-            <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
+              <View style={styles.calculationDivider} />
+              <View style={styles.calculationRow}>
+                <Text style={styles.calculationTotalLabel}>Net Proceeds</Text>
+                <Text style={styles.calculationTotalValue}>{formatMoney(netProceedsValue)}</Text>
+              </View>
+            </View>
           </View>
 
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Net Proceeds</Text>
-            <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
-          </View>
-        </View>
-
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.textSecondary}>
-            * These calculations are estimates only. Actual costs may vary. 
-            Please consult with a conveyancer or solicitor for exact figures.
-          </Text>
-        </View>
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      <View style={styles.pinnedFooter}>
-        <View style={styles.pinnedContent}>
-          <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
-          <Text style={[
-            styles.pinnedValue,
-            { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
-          ]}>
-            ${formatMoney(netProceedsValue)}
-          </Text>
-        </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -954,1584 +656,307 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 8,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 12,
-    paddingBottom: 200,
+    paddingBottom: 100,
   },
-  toggleSection: {
-    gap: 12,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-    flex: 1,
-    marginRight: 12,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  addButton: {
-    padding: 4,
-  },
-  inputWithPrefix: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  inputPrefix: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    paddingLeft: 12,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  inputWithPrefixField: {
-    flex: 1,
-    borderWidth: 0,
-    marginVertical: 0,
-  },
-  debtItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  debtInputContainer: {
-    flex: 1,
-    maxWidth: '85%',
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  tierContainer: {
-    backgroundColor: colors.highlight,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  tierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tierLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tierInputContainer: {
-    flex: 1,
-  },
-  tierInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierInput: {
-    marginVertical: 0,
-    fontSize: 14,
-    paddingVertical: 8,
-  },
-  resultsCard: {
-    backgroundColor: colors.highlight,
-  },
-  resultsTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  resultLabel: {
-    fontSize: 16,
-    color: colors.text,
-    flex: 1,
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  resultValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  costValue: {
-    color: colors.secondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  totalLabel: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  totalValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.primary,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  bottomPadding: {
-    height: 20,
-  },
-  priceCard: {
-    backgroundColor: '#e0e0e0',
-    alignItems: 'center',
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#424242',
-    marginBottom: 8,
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  priceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#9e9e9e',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 20,
-    width: '99%',
-    alignSelf: 'center',
-    height: 60,
-  },
-  dollarSign: {
-    fontWeight: '800',
-    color: '#424242',
-    marginRight: 4,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  priceInput: {
-    fontWeight: '800',
-    color: '#424242',
-    width: '100%',
-    padding: 0,
-    margin: 0,
-  },
-  priceControls: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '90%',
-    marginBottom: 20,
-  },
-  priceButton: {
-    padding: 6,
-  },
-  incrementContainer: {
-    alignItems: 'center',
-  },
-  incrementLabel: {
-    fontSize: 13,
-    color: '#424242',
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  incrementValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#424242',
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  incrementSelector: {
-    width: '100%',
-    marginTop: 8,
-  },
-  incrementSelectorLabel: {
-    fontSize: 13,
-    color: '#424242',
-    marginBottom: 10,
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  incrementOptions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  incrementOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#9e9e9e',
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  incrementOptionActive: {
-    backgroundColor: '#424242',
-    borderColor: '#424242',
-  },
-  incrementOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#424242',
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  incrementOptionTextActive: {
-    color: '#ffffff',
-  },
-  customIncrementContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12I found the issue! In the `loadSellScreenData` function, the debt items are being loaded correctly as strings, but I need to verify there's no transformation happening. Let me check the exact line where the issue occurs:
-
-Looking at the code, I can see that in `loadSellScreenData`, the debt items are loaded with:
-
-```typescript
-const loadedDebtItems = data.debtItems.map((item: DebtItem) => ({
-  id: item.id,
-  amount: String(item.amount) // ✅ Ensure it's loaded as string
-}));
-```
-
-This looks correct. However, the issue is that when the data is saved in `saveSellScreenStructure`, it's also converting to string, which should be fine. But the problem might be that the value is already a string and `String()` might be doing something unexpected.
-
-Let me trace through more carefully. The actual issue is likely that when we call `String()` on a value that's already been stringified in JSON, we might be getting unexpected behavior.
-
-The fix is simple: **Remove the `String()` conversion when loading the data**, since the data coming from JSON.parse is already in the correct format.
-
-<write file="app/sell.tsx">
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { colors, commonStyles } from '@/styles/commonStyles';
-import { IconSymbol } from '@/components/IconSymbol';
-import { useProperty } from '@/contexts/PropertyContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { saveNumericValue, loadNumericValue, saveToggleValue, loadToggleValue, SELL_KEYS } from '@/utils/localStorage';
-
-interface CommissionTier {
-  id: string;
-  fromPrice: string;
-  toPrice: string;
-  rate: string;
-}
-
-interface DebtItem {
-  id: string;
-  amount: string;
-}
-
-export default function SellScreen() {
-  const router = useRouter();
-  const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
-  
-  const [mortgageToBeRepaid, setMortgageToBeRepaid] = useState(false);
-  const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
-  const [useSaleFunds, setUseSaleFunds] = useState(false);
-  
-  const [salePrice, setSalePrice] = useState(0);
-  const [salePriceText, setSalePriceText] = useState('');
-  const [priceIncrement, setPriceIncrement] = useState(5000);
-  const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
-  const [customIncrement, setCustomIncrement] = useState('1000');
-  
-  const [advertisingCosts, setAdvertisingCosts] = useState('');
-  const [legalFees, setLegalFees] = useState('');
-  
-  const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
-  const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
-  
-  const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
-
-  async function saveSellScreenStructure() {
-    try {
-      const data = {
-        debtItems: debtItems,
-        commissionTiers: commissionTiers,
-      };
-      await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen structure to AsyncStorage:', data);
-    } catch (error) {
-      console.error('Error saving Sell screen data:', error);
-    }
-  }
-
-  // Load data on mount
-  useEffect(() => {
-    console.log('Sell screen mounted - loading persisted values');
-    loadAllNumericValues();
-    loadAllToggleValues();
-    loadSellScreenData();
-  }, []);
-
-  useEffect(() => {
-    if (debtItems.length > 0 || commissionTiers.length > 0) {
-      console.log('Commission tiers or debt items changed - saving structure with current values');
-      saveSellScreenStructure();
-    }
-  }, [debtItems, commissionTiers]);
-
-  // Reload data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Sell screen focused - reloading persisted values');
-      loadAllNumericValues();
-      loadAllToggleValues();
-      loadSellScreenData();
-    }, [])
-  );
-
-  // Load all numeric values from localStorage
-  const loadAllNumericValues = async () => {
-    console.log('Loading all numeric values from localStorage');
-    
-    // Load sale price - using fixed key SELL_KEYS.SALE_PRICE
-    const savedPrice = await loadNumericValue(SELL_KEYS.SALE_PRICE);
-    if (savedPrice !== null) {
-      const numValue = parseFloat(savedPrice);
-      if (!isNaN(numValue) && numValue > 0) {
-        setSalePrice(numValue);
-        setSalePriceText(numValue.toLocaleString('en-US'));
-      }
-    }
-    
-    // Load price increment
-    const savedIncrement = await loadNumericValue(SELL_KEYS.PRICE_INCREMENT);
-    if (savedIncrement !== null) {
-      const numValue = parseFloat(savedIncrement);
-      if (!isNaN(numValue)) {
-        setPriceIncrement(numValue);
-      }
-    }
-    
-    // Load custom increment
-    const savedCustomIncrement = await loadNumericValue(SELL_KEYS.CUSTOM_INCREMENT);
-    if (savedCustomIncrement !== null) {
-      setCustomIncrement(savedCustomIncrement);
-    }
-    
-    // Load advertising costs
-    const savedAdvertising = await loadNumericValue(SELL_KEYS.ADVERTISING_COSTS);
-    if (savedAdvertising !== null) {
-      setAdvertisingCosts(savedAdvertising);
-    }
-    
-    // Load legal fees
-    const savedLegal = await loadNumericValue(SELL_KEYS.LEGAL_FEES);
-    if (savedLegal !== null) {
-      setLegalFees(savedLegal);
-    }
-    
-    // Load partial repayment amount
-    const savedPartial = await loadNumericValue(SELL_KEYS.PARTIAL_REPAYMENT);
-    if (savedPartial !== null) {
-      setPartialRepaymentAmount(savedPartial);
-    }
-  };
-
-  // Load all toggle values from localStorage
-  const loadAllToggleValues = async () => {
-    console.log('Loading all toggle values from localStorage');
-    
-    // Load Mortgage to be repaid toggle
-    const mortgageRepaid = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, false);
-    setMortgageToBeRepaid(mortgageRepaid);
-    
-    // Load Mortgage repaid in full toggle
-    const mortgageRepaidFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, true);
-    setMortgageRepaidInFull(mortgageRepaidFull);
-    
-    // Load Use sale funds toggle
-    const useSaleFundsToggle = await loadToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, false);
-    setUseSaleFunds(useSaleFundsToggle);
-    
-    console.log('Loaded toggle values:', {
-      mortgageRepaid,
-      mortgageRepaidFull,
-      useSaleFundsToggle
-    });
-  };
-
-  const loadSellScreenData = async () => {
-    try {
-      console.log('Loading Sell screen data from AsyncStorage');
-      const savedData = await AsyncStorage.getItem('sellScreenData');
-      if (savedData) {
-        const data = JSON.parse(savedData);
-        console.log('Loaded Sell screen data:', data);
-        
-        // ✅ CRITICAL FIX: Load debt items directly without any transformation
-        if (data.debtItems && data.debtItems.length > 0) {
-          console.log('Loaded debt items with amounts (no transformation):', data.debtItems);
-          setDebtItems(data.debtItems);
-        } else {
-          console.log('No saved debt items - initializing with default');
-          setDebtItems([{ id: '1', amount: '' }]);
-        }
-        
-        // ✅ CRITICAL FIX: Load commission tiers directly without any transformation
-        if (data.commissionTiers && data.commissionTiers.length > 0) {
-          console.log('Loaded commission tiers with values (no transformation):', data.commissionTiers);
-          setCommissionTiers(data.commissionTiers);
-        } else {
-          console.log('No saved commission tiers - initializing with default');
-          setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-        }
-      } else {
-        console.log('No saved Sell screen data found - using defaults');
-        setDebtItems([{ id: '1', amount: '' }]);
-        setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-      }
-    } catch (error) {
-      console.error('Error loading Sell screen data:', error);
-      setDebtItems([{ id: '1', amount: '' }]);
-      setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
-    }
-  };
-
-  const handleMortgageToBeRepaidToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage to be repaid to:', value);
-    setMortgageToBeRepaid(value);
-    
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
-  };
-
-  const handleMortgageRepaidInFullToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage repaid in full to:', value);
-    setMortgageRepaidInFull(value);
-    
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
-  };
-
-  const handleUseSaleFundsToggle = async (value: boolean) => {
-    console.log('User toggled Use sale funds to:', value);
-    setUseSaleFunds(value);
-    
-    await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
-  };
-
-  // Memoized commission calculation - only recalculates when dependencies change
-  const calculateCommission = useCallback((price: number): number => {
-    // If only one tier and no from/to values, apply rate to entire sale price
-    if (commissionTiers.length === 1) {
-      const tier = commissionTiers[0];
-      const hasNoRange = !tier.fromPrice && !tier.toPrice;
-      if (hasNoRange) {
-        const rate = parseFloat(tier.rate) || 0;
-        return (price * rate) / 100;
-      }
-    }
-
-    // Multiple tiers or tiers with ranges
-    let totalCommission = 0;
-    const sortedTiers = [...commissionTiers].sort((a, b) => 
-      (parseFloat(a.fromPrice) || 0) - (parseFloat(b.fromPrice) || 0)
-    );
-    
-    for (let i = 0; i < sortedTiers.length; i++) {
-      const tier = sortedTiers[i];
-      const from = parseFloat(tier.fromPrice) || 0;
-      // If no "to" value and this is the last tier, use sale price as upper limit
-      const isLastTier = i === sortedTiers.length - 1;
-      const to = tier.toPrice ? parseFloat(tier.toPrice) : (isLastTier ? price : Infinity);
-      const rate = parseFloat(tier.rate) || 0;
-      
-      if (price > from) {
-        const applicableAmount = Math.min(price, to) - from;
-        if (applicableAmount > 0) {
-          totalCommission += (applicableAmount * rate) / 100;
-        }
-      }
-    }
-    
-    return totalCommission;
-  }, [commissionTiers]);
-
-  const handlePriceTextChange = (text: string) => {
-    console.log('User changed sale price:', text);
-    const cleanText = text.replace(/[^0-9]/g, '');
-    const numValue = parseFloat(cleanText);
-    if (!isNaN(numValue) && numValue >= 0) {
-      setSalePrice(numValue);
-      const formatted = numValue.toLocaleString('en-US');
-      setSalePriceText(formatted);
-      saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
-    } else if (cleanText === '') {
-      setSalePrice(0);
-      setSalePriceText('');
-      saveNumericValue(SELL_KEYS.SALE_PRICE, '0');
-    }
-  };
-
-  const handlePriceBlur = () => {
-    if (salePrice > 0) {
-      const formatted = salePrice.toLocaleString('en-US');
-      setSalePriceText(formatted);
-    }
-    Keyboard.dismiss();
-  };
-
-  const adjustPrice = (amount: number) => {
-    console.log('User adjusted price by:', amount);
-    const newPrice = Math.max(0, salePrice + amount);
-    setSalePrice(newPrice);
-    const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
-    setSalePriceText(formatted);
-    saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
-  };
-
-  const handleCustomIncrementSubmit = () => {
-    console.log('User submitted custom increment:', customIncrement);
-    const value = parseFloat(customIncrement);
-    if (!isNaN(value) && value > 0) {
-      setPriceIncrement(value);
-      setShowCustomIncrementInput(false);
-      saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
-      saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
-    } else {
-      setShowCustomIncrementInput(false);
-    }
-  };
-
-  const handleTapOutside = useCallback(() => {
-    console.log('User tapped outside - dismissing keyboard');
-    Keyboard.dismiss();
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    console.log('User scrolled - dismissing keyboard');
-    Keyboard.dismiss();
-  }, []);
-
-  const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
-  
-  const fixedFontSize = 48 * 0.7;
-  
-  // Memoized calculations - only recalculate when dependencies change
-  const price = salePrice;
-  const commission = useMemo(() => calculateCommission(price), [calculateCommission, price]);
-  const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
-  const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
-  
-  const totalDebt = useMemo(() => 
-    debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
-    [debtItems]
-  );
-  
-  const debtToDeduct = useMemo(() => {
-    if (!mortgageToBeRepaid) {
-      return 0;
-    }
-    if (mortgageRepaidInFull) {
-      return totalDebt;
-    }
-    return parseFloat(partialRepaymentAmount) || 0;
-  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
-  
-  const dischargeFee = useMemo(() => 
-    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
-    [mortgageToBeRepaid, debtToDeduct]
-  );
-
-  const totalCosts = useMemo(() => 
-    commission + advertising + legal + dischargeFee,
-    [commission, advertising, legal, dischargeFee]
-  );
-  
-  const netProceedsValue = useMemo(() => 
-    price - totalCosts - debtToDeduct,
-    [price, totalCosts, debtToDeduct]
-  );
-
-  // Update context only when net proceeds changes
-  useEffect(() => {
-    console.log('Sell screen: Net proceeds updated to', netProceedsValue);
-    setNetProceeds(netProceedsValue);
-  }, [netProceedsValue, setNetProceeds]);
-
-  // Update context only when use sale funds toggle changes
-  useEffect(() => {
-    console.log('Sell screen: Use sale funds toggle changed to', useSaleFunds);
-    setUseSaleFundsForPurchase(useSaleFunds);
-  }, [useSaleFunds, setUseSaleFundsForPurchase]);
-
-  const addCommissionTier = () => {
-    const newId = (commissionTiers.length + 1).toString();
-    const lastTier = commissionTiers[commissionTiers.length - 1];
-    const newFrom = lastTier && lastTier.toPrice ? lastTier.toPrice : '0';
-    
-    const updatedTiers = [
-      ...commissionTiers,
-      { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
-    ];
-    setCommissionTiers(updatedTiers);
-    console.log('Added commission tier with id:', newId, 'fromPrice:', newFrom);
-  };
-
-  const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
-    console.log('User updated commission tier', id, field, 'to', value);
-    const updatedTiers = commissionTiers.map(tier => 
-      tier.id === id ? { ...tier, [field]: value } : tier
-    );
-    
-    // Auto-populate next tier's "from" when current tier's "to" is updated
-    if (field === 'toPrice' && value) {
-      const currentIndex = updatedTiers.findIndex(t => t.id === id);
-      if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
-        updatedTiers[currentIndex + 1].fromPrice = value;
-      }
-    }
-    
-    setCommissionTiers(updatedTiers);
-    
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
-  };
-
-  const removeCommissionTier = (id: string) => {
-    if (commissionTiers.length > 1) {
-      const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
-      setCommissionTiers(updatedTiers);
-      console.log('Removed commission tier:', id);
-    }
-  };
-
-  const addDebtItem = () => {
-    const newId = (debtItems.length + 1).toString();
-    console.log('Adding new debt item with id:', newId);
-    const updatedItems = [...debtItems, { id: newId, amount: '' }];
-    setDebtItems(updatedItems);
-  };
-
-  const updateDebtItem = (id: string, amount: string) => {
-    console.log('User updated debt item', id, 'with amount', amount);
-    const updatedItems = debtItems.map(item => 
-      item.id === id ? { ...item, amount } : item
-    );
-    setDebtItems(updatedItems);
-    
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
-  };
-
-  const removeDebtItem = (id: string) => {
-    if (debtItems.length > 1) {
-      console.log('Removing debt item:', id);
-      const updatedItems = debtItems.filter(item => item.id !== id);
-      setDebtItems(updatedItems);
-    }
-  };
-
-  const formatMoney = useCallback((value: number): string => {
-    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }, []);
-
-  const handleIncrementChange = (value: number) => {
-    console.log('User changed increment to:', value);
-    setPriceIncrement(value);
-    saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
-  };
-
-  const handleAdvertisingChange = (text: string) => {
-    console.log('User changed advertising costs:', text);
-    setAdvertisingCosts(text);
-    saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
-  };
-
-  const handleLegalFeesChange = (text: string) => {
-    console.log('User changed legal fees:', text);
-    setLegalFees(text);
-    saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
-  };
-
-  const handlePartialRepaymentChange = (text: string) => {
-    console.log('User changed partial repayment amount:', text);
-    setPartialRepaymentAmount(text);
-    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol
-            ios_icon_name="chevron.left"
-            android_material_icon_name="arrow-back"
-            size={24}
-            color={colors.text}
-          />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sell</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
-        <View style={commonStyles.card}>
-          <View style={styles.toggleSection}>
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
-              <Switch
-                value={mortgageToBeRepaid}
-                onValueChange={handleMortgageToBeRepaidToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-            
-            {mortgageToBeRepaid && (
-              <>
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
-                  <Switch
-                    value={mortgageRepaidInFull}
-                    onValueChange={handleMortgageRepaidInFullToggle}
-                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                    thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
-                  />
-                </View>
-              </>
-            )}
-
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
-              <Switch
-                value={useSaleFunds}
-                onValueChange={handleUseSaleFundsToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={useSaleFunds ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-          </View>
-        </View>
-
-        <View style={[commonStyles.card, styles.priceCard]}>
-          <Text style={styles.priceLabel}>Sale Price</Text>
-          <View style={styles.priceInputContainer}>
-            <Text style={[styles.dollarSign, { fontSize: fixedFontSize, letterSpacing: -0.5 }]}>$</Text>
-            <TextInput
-              style={[
-                styles.priceInput,
-                {
-                  fontSize: fixedFontSize,
-                  fontFamily: 'CourierPrime_700Bold',
-                  letterSpacing: -0.5,
-                  paddingLeft: 20,
-                  paddingRight: 8,
-                  height: 60,
-                  flexShrink: 0,
-                  overflow: 'visible',
-                  textAlign: 'right',
-                },
-              ]}
-              value={salePriceText}
-              onChangeText={handlePriceTextChange}
-              onBlur={handlePriceBlur}
-              keyboardType="numeric"
-              selectTextOnFocus
-              placeholder=""
-            />
-          </View>
-          
-          <View style={styles.priceControls}>
-            <TouchableOpacity 
-              style={styles.priceButton}
-              onPress={() => adjustPrice(-priceIncrement)}
-            >
-              <IconSymbol
-                ios_icon_name="minus.circle.fill"
-                android_material_icon_name="remove-circle"
-                size={44}
-                color="#424242"
-              />
-            </TouchableOpacity>
-
-            <View style={styles.incrementContainer}>
-              <Text style={styles.incrementLabel}>Increment</Text>
-              <Text style={styles.incrementValue}>${formatMoney(priceIncrement)}</Text>
-            </View>
-
-            <TouchableOpacity 
-              style={styles.priceButton}
-              onPress={() => adjustPrice(priceIncrement)}
-            >
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={44}
-                color="#424242"
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.incrementSelector}>
-            <Text style={styles.incrementSelectorLabel}>Select Price Increment:</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.incrementOptions}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.incrementOption,
-                  showCustomIncrementInput && styles.incrementOptionActive
-                ]}
-                onPress={() => setShowCustomIncrementInput(!showCustomIncrementInput)}
-              >
-                <Text style={[
-                  styles.incrementOptionText,
-                  showCustomIncrementInput && styles.incrementOptionTextActive
-                ]}>
-                  Custom
-                </Text>
-              </TouchableOpacity>
-              {incrementOptions.map((option, index) => {
-                const displayText = option >= 1000 
-                  ? `$${(option / 1000).toFixed(option % 1000 === 0 ? 0 : 1)}k`
-                  : `$${option}`;
-                return (
-                  <React.Fragment key={index}>
-                  <TouchableOpacity
-                    style={[
-                      styles.incrementOption,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionActive
-                    ]}
-                    onPress={() => {
-                      handleIncrementChange(option);
-                      setShowCustomIncrementInput(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.incrementOptionText,
-                      priceIncrement === option && !showCustomIncrementInput && styles.incrementOptionTextActive
-                    ]}>
-                      {displayText}
-                    </Text>
-                  </TouchableOpacity>
-                  </React.Fragment>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {showCustomIncrementInput && (
-            <View style={styles.customIncrementContainer}>
-              <TextInput
-                style={styles.customIncrementInput}
-                placeholder="Enter custom increment"
-                keyboardType="numeric"
-                value={customIncrement}
-                onChangeText={(text) => {
-                  setCustomIncrement(text);
-                  saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
-                }}
-                onBlur={() => Keyboard.dismiss()}
-              />
-              <TouchableOpacity 
-                style={styles.customIncrementButton}
-                onPress={handleCustomIncrementSubmit}
-              >
-                <Text style={styles.customIncrementButtonText}>Set</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <View style={commonStyles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={commonStyles.subtitle}>Agent Commission</Text>
-            <TouchableOpacity onPress={addCommissionTier} style={styles.addButton}>
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={24}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {commissionTiers.map((tier, index) => (
-            <React.Fragment key={index}>
-            <View style={styles.tierContainer}>
-              <View style={styles.tierHeader}>
-                <Text style={styles.tierLabel}>Tier {index + 1}</Text>
-                {commissionTiers.length > 1 && (
-                  <TouchableOpacity onPress={() => removeCommissionTier(tier.id)}>
-                    <IconSymbol
-                      ios_icon_name="trash"
-                      android_material_icon_name="delete"
-                      size={20}
-                      color={colors.secondary}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-              
-              <View style={styles.tierRow}>
-                {commissionTiers.length > 1 && (
-                  <>
-                    <View style={styles.tierInputContainer}>
-                      <Text style={styles.tierInputLabel}>From ($)</Text>
-                      <TextInput
-                        style={[commonStyles.input, styles.tierInput]}
-                        placeholder="0"
-                        keyboardType="numeric"
-                        value={tier.fromPrice}
-                        onChangeText={(value) => updateCommissionTier(tier.id, 'fromPrice', value)}
-                        onBlur={() => Keyboard.dismiss()}
-                        adjustsFontSizeToFit
-                        numberOfLines={1}
-                        minimumFontScale={0.5}
-                      />
-                    </View>
-                    
-                    <View style={styles.tierInputContainer}>
-                      <Text style={styles.tierInputLabel}>To ($)</Text>
-                      <TextInput
-                        style={[commonStyles.input, styles.tierInput]}
-                        placeholder="500000"
-                        keyboardType="numeric"
-                        value={tier.toPrice}
-                        onChangeText={(value) => updateCommissionTier(tier.id, 'toPrice', value)}
-                        onBlur={() => Keyboard.dismiss()}
-                        adjustsFontSizeToFit
-                        numberOfLines={1}
-                        minimumFontScale={0.5}
-                      />
-                    </View>
-                  </>
-                )}
-                
-                <View style={[styles.tierInputContainer, commissionTiers.length === 1 && { flex: 1 }]}>
-                  <Text style={styles.tierInputLabel}>Rate (%)</Text>
-                  <TextInput
-                    style={[commonStyles.input, styles.tierInput]}
-                    placeholder="2.5"
-                    keyboardType="numeric"
-                    value={tier.rate}
-                    onChangeText={(value) => updateCommissionTier(tier.id, 'rate', value)}
-                    onBlur={() => Keyboard.dismiss()}
-                    adjustsFontSizeToFit
-                    numberOfLines={1}
-                    minimumFontScale={0.5}
-                  />
-                </View>
-              </View>
-            </View>
-            </React.Fragment>
-          ))}
-        </View>
-
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.label}>Advertising Costs</Text>
-          <View style={styles.inputWithPrefix}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={[commonStyles.input, styles.inputWithPrefixField]}
-              placeholder="Enter advertising costs"
-              keyboardType="numeric"
-              value={advertisingCosts}
-              onChangeText={handleAdvertisingChange}
-              onBlur={() => Keyboard.dismiss()}
-            />
-          </View>
-
-          <Text style={commonStyles.label}>Legal Fees</Text>
-          <View style={styles.inputWithPrefix}>
-            <Text style={styles.inputPrefix}>$</Text>
-            <TextInput
-              style={[commonStyles.input, styles.inputWithPrefixField]}
-              placeholder="Enter legal fees"
-              keyboardType="numeric"
-              value={legalFees}
-              onChangeText={handleLegalFeesChange}
-              onBlur={() => Keyboard.dismiss()}
-            />
-          </View>
-
-          <View style={styles.sectionHeader}>
-            <Text style={commonStyles.label}>Mortgage Balance/Other Debt</Text>
-            <TouchableOpacity onPress={addDebtItem} style={styles.addButton}>
-              <IconSymbol
-                ios_icon_name="plus.circle.fill"
-                android_material_icon_name="add-circle"
-                size={20}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {debtItems.map((item, index) => (
-            <React.Fragment key={index}>
-            <View style={styles.debtItemRow}>
-              <View style={[styles.inputWithPrefix, styles.debtInputContainer]}>
-                <Text style={styles.inputPrefix}>$</Text>
-                <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder={`Debt ${index + 1}`}
-                  keyboardType="numeric"
-                  value={item.amount}
-                  onChangeText={(value) => updateDebtItem(item.id, value)}
-                  onBlur={() => Keyboard.dismiss()}
-                />
-              </View>
-              {debtItems.length > 1 && (
-                <TouchableOpacity onPress={() => removeDebtItem(item.id)} style={styles.deleteButton}>
-                  <IconSymbol
-                    ios_icon_name="minus.circle.fill"
-                    android_material_icon_name="remove-circle"
-                    size={24}
-                    color="#f44336"
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-            </React.Fragment>
-          ))}
-
-          {mortgageToBeRepaid && !mortgageRepaidInFull && (
-            <>
-              <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-              <View style={styles.inputWithPrefix}>
-                <Text style={styles.inputPrefix}>$</Text>
-                <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder="Enter partial repayment amount"
-                  keyboardType="numeric"
-                  value={partialRepaymentAmount}
-                  onChangeText={handlePartialRepaymentChange}
-                  onBlur={() => Keyboard.dismiss()}
-                />
-              </View>
-            </>
-          )}
-        </View>
-
-        <View style={[commonStyles.card, styles.resultsCard]}>
-          <Text style={styles.resultsTitle}>Cost Breakdown</Text>
-          
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Sale Price</Text>
-            <Text style={styles.resultValue}>${formatMoney(price)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Agent Commission</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(commission)}</Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Advertising Costs</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(advertising)}</Text>
-          </View>
-
-          <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Legal Fees</Text>
-            <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(legal)}</Text>
-          </View>
-
-          {dischargeFee > 0 && (
-            <View style={styles.resultRow}>
-              <Text style={styles.resultLabel}>Mortgage Discharge Fee</Text>
-              <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(dischargeFee)}</Text>
-            </View>
-          )}
-
-          {mortgageToBeRepaid && debtItems.map((item, index) => {
-            const debtAmount = parseFloat(item.amount) || 0;
-            
-            if (debtAmount === 0) {
-              return null;
-            }
-            
-            const labelText = `Mortgage/Debt ${index + 1}`;
-            
-            let displayAmount = 0;
-            if (mortgageRepaidInFull) {
-              displayAmount = debtAmount;
-            } else {
-              const partialAmount = parseFloat(partialRepaymentAmount) || 0;
-              let remainingPartial = partialAmount;
-              
-              for (let i = 0; i <= index; i++) {
-                const currentDebt = parseFloat(debtItems[i].amount) || 0;
-                if (i < index) {
-                  remainingPartial -= currentDebt;
-                } else {
-                  displayAmount = Math.min(currentDebt, Math.max(0, remainingPartial));
-                }
-              }
-            }
-            
-            return (
-              <React.Fragment key={index}>
-              {displayAmount > 0 && (
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>{labelText}</Text>
-                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
-                </View>
-              )}
-              </React.Fragment>
-            );
-          })}
-
-          <View style={styles.divider} />
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Costs</Text>
-            <Text style={[styles.totalValue, styles.costValue]}>${formatMoney(totalCosts)}</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Net Proceeds</Text>
-            <Text style={[styles.totalValue, { color: colors.success }]}>${formatMoney(netProceedsValue)}</Text>
-          </View>
-        </View>
-
-        <View style={commonStyles.card}>
-          <Text style={commonStyles.textSecondary}>
-            * These calculations are estimates only. Actual costs may vary. 
-            Please consult with a conveyancer or solicitor for exact figures.
-          </Text>
-        </View>
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      <View style={styles.pinnedFooter}>
-        <View style={styles.pinnedContent}>
-          <Text style={styles.pinnedLabel}>Balance of Sale Funds</Text>
-          <Text style={[
-            styles.pinnedValue,
-            { color: netProceedsValue >= 0 ? '#424242' : '#f44336' }
-          ]}>
-            ${formatMoney(netProceedsValue)}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 8,
-    backgroundColor: colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 48 : 60,
+    paddingBottom: 20,
   },
   backButton: {
+    padding: 8,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  placeholder: {
     width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 12,
-    paddingBottom: 200,
-  },
-  toggleSection: {
-    gap: 12,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-    flex: 1,
-    marginRight: 12,
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  addButton: {
-    padding: 4,
-  },
-  inputWithPrefix: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  inputPrefix: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    paddingLeft: 12,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  inputWithPrefixField: {
-    flex: 1,
-    borderWidth: 0,
-    marginVertical: 0,
-  },
-  debtItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  debtInputContainer: {
-    flex: 1,
-    maxWidth: '85%',
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  tierContainer: {
-    backgroundColor: colors.highlight,
-    borderRadius: 8,
-    padding: 12,
     marginBottom: 12,
   },
-  tierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tierLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tierInputContainer: {
-    flex: 1,
-  },
-  tierInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  tierInput: {
-    marginVertical: 0,
-    fontSize: 14,
-    paddingVertical: 8,
-  },
-  resultsCard: {
-    backgroundColor: colors.highlight,
-  },
-  resultsTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  resultLabel: {
-    fontSize: 16,
-    color: colors.text,
-    flex: 1,
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  resultValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  costValue: {
-    color: colors.secondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  totalLabel: {
+  sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  totalValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.primary,
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  bottomPadding: {
-    height: 20,
-  },
-  priceCard: {
-    backgroundColor: '#e0e0e0',
-    alignItems: 'center',
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#424242',
-    marginBottom: 8,
-    fontFamily: 'CourierPrime_400Regular',
+    marginBottom: 12,
   },
   priceInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.card,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#9e9e9e',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 20,
-    width: '99%',
-    alignSelf: 'center',
-    height: 60,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  dollarSign: {
-    fontWeight: '800',
-    color: '#424242',
-    marginRight: 4,
-    fontFamily: 'CourierPrime_700Bold',
+  currencySymbol: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.text,
+    marginRight: 8,
   },
   priceInput: {
-    fontWeight: '800',
-    color: '#424242',
-    width: '100%',
-    padding: 0,
-    margin: 0,
-  },
-  priceControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '90%',
-    marginBottom: 20,
-  },
-  priceButton: {
-    padding: 6,
-  },
-  incrementContainer: {
-    alignItems: 'center',
-  },
-  incrementLabel: {
-    fontSize: 13,
-    color: '#424242',
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  incrementValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#424242',
-    fontFamily: 'CourierPrime_700Bold',
-  },
-  incrementSelector: {
-    width: '100%',
-    marginTop: 8,
-  },
-  incrementSelectorLabel: {
-    fontSize: 13,
-    color: '#424242',
-    marginBottom: 10,
-    fontFamily: 'CourierPrime_400Regular',
-  },
-  incrementOptions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  incrementOption: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#9e9e9e',
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  incrementOptionActive: {
-    backgroundColor: '#424242',
-    borderColor: '#424242',
-  },
-  incrementOptionText: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 24,
     fontWeight: '600',
-    color: '#424242',
-    fontFamily: 'CourierPrime_700Bold',
+    color: colors.text,
   },
-  incrementOptionTextActive: {
-    color: '#ffffff',
-  },
-  customIncrementContainer: {
+  incrementButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 12,
     marginTop: 12,
+  },
+  incrementButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  incrementButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.background,
+  },
+  incrementSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    marginTop: 12,
+  },
+  incrementOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  incrementOptionSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  incrementOptionText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  incrementOptionTextSelected: {
+    color: colors.background,
+    fontWeight: '600',
+  },
+  customIncrementContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
   },
   customIncrementInput: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     fontSize: 16,
     color: colors.text,
     borderWidth: 1,
-    borderColor: '#9e9e9e',
-    fontFamily: 'CourierPrime_400Regular',
+    borderColor: colors.border,
   },
   customIncrementButton: {
-    backgroundColor: '#424242',
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
   },
   customIncrementButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
-    fontFamily: 'CourierPrime_700Bold',
+    color: colors.background,
   },
-  pinnedFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#e0e0e0',
-    paddingVertical: 12,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingBottom: 80,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  pinnedContent: {
+  input: {
+    flex: 1,
+    fontSize: 18,
+    color: colors.text,
+  },
+  addButton: {
+    padding: 4,
+  },
+  tierContainer: {
+    marginBottom: 12,
+  },
+  tierRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  tierInputGroup: {
+    flex: 1,
+  },
+  tierLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  tierInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tierInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+  },
+  percentSymbol: {
+    fontSize: 14,
+    color: colors.text,
+    marginLeft: 4,
+  },
+  removeButton: {
+    padding: 4,
+  },
+  commissionTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  commissionTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  commissionTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    color: colors.text,
+  },
+  debtItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  debtTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  debtTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  debtTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primary,
+  },
+  partialRepaymentContainer: {
+    marginTop: 12,
+  },
+  partialRepaymentLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  calculationSection: {
+    marginHorizontal: 20,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  calculationTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  calculationBreakdown: {
+    gap: 12,
+  },
+  calculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  pinnedLabel: {
-    fontSize: 13,
-    color: '#424242',
-    marginBottom: 4,
-    fontFamily: 'CourierPrime_400Regular',
+  calculationLabel: {
+    fontSize: 16,
+    color: colors.textSecondary,
   },
-  pinnedValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#424242',
-    fontFamily: 'CourierPrime_700Bold',
+  calculationValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  calculationValueNegative: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.error,
+  },
+  calculationDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+  calculationTotalLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  calculationTotalValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
   },
 });
