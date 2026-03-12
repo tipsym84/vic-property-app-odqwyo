@@ -37,14 +37,12 @@ export default function SellScreen() {
   const [advertisingCosts, setAdvertisingCosts] = useState('');
   const [legalFees, setLegalFees] = useState('');
   
-  const [debtItems, setDebtItems] = useState<DebtItem[]>([
-    { id: '1', amount: '' }
-  ]);
+  // ✅ CRITICAL FIX: Initialize as empty arrays - only populate with defaults if no saved data
+  const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
   const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
   
-  const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([
-    { id: '1', fromPrice: '', toPrice: '', rate: '' },
-  ]);
+  // ✅ CRITICAL FIX: Initialize as empty array - only populate with defaults if no saved data
+  const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
 
   // ✅ CRITICAL FIX: Save structure WITH current values, not empty values
   async function saveSellScreenStructure() {
@@ -174,18 +172,32 @@ export default function SellScreen() {
         if (data.debtItems && data.debtItems.length > 0) {
           console.log('Loaded debt items with amounts:', data.debtItems);
           setDebtItems(data.debtItems);
+        } else {
+          // ✅ CRITICAL FIX: Only initialize with default if no saved data
+          console.log('No saved debt items - initializing with default');
+          setDebtItems([{ id: '1', amount: '' }]);
         }
         
         // ✅ CRITICAL FIX: Load commission tiers WITH their saved values
         if (data.commissionTiers && data.commissionTiers.length > 0) {
           console.log('Loaded commission tiers with values:', data.commissionTiers);
           setCommissionTiers(data.commissionTiers);
+        } else {
+          // ✅ CRITICAL FIX: Only initialize with default if no saved data
+          console.log('No saved commission tiers - initializing with default');
+          setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
         }
       } else {
+        // ✅ CRITICAL FIX: No saved data at all - initialize with defaults
         console.log('No saved Sell screen data found - using defaults');
+        setDebtItems([{ id: '1', amount: '' }]);
+        setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
       }
     } catch (error) {
       console.error('Error loading Sell screen data:', error);
+      // ✅ CRITICAL FIX: On error, initialize with defaults
+      setDebtItems([{ id: '1', amount: '' }]);
+      setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
     }
   };
 
