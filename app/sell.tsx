@@ -50,13 +50,13 @@ export default function SellScreen() {
   async function saveSellScreenStructure() {
     try {
       const data = {
-        debtItems: debtItems.map(item => ({ id: item.id, amount: item.amount })), // ✅ Save WITH values
+        debtItems: debtItems.map(item => ({ id: item.id, amount: item.amount })),
         commissionTiers: commissionTiers.map(tier => ({ 
           id: tier.id, 
           fromPrice: tier.fromPrice, 
           toPrice: tier.toPrice, 
           rate: tier.rate 
-        })), // ✅ Save WITH values
+        })),
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
       console.log('Saved Sell screen structure to AsyncStorage:', data);
@@ -392,6 +392,12 @@ export default function SellScreen() {
     }
     
     setCommissionTiers(updatedTiers);
+    
+    // ✅ CRITICAL FIX: Save immediately after updating state
+    // This ensures the data persists even if the user navigates away
+    setTimeout(() => {
+      saveSellScreenStructure();
+    }, 0);
   };
 
   const removeCommissionTier = (id: string) => {
@@ -415,6 +421,12 @@ export default function SellScreen() {
       item.id === id ? { ...item, amount } : item
     );
     setDebtItems(updatedItems);
+    
+    // ✅ CRITICAL FIX: Save immediately after updating state
+    // This ensures the data persists even if the user navigates away
+    setTimeout(() => {
+      saveSellScreenStructure();
+    }, 0);
   };
 
   const removeDebtItem = (id: string) => {
