@@ -80,15 +80,14 @@ export default function BuyScreen() {
     isConcessionCardHolder: false,
   });
 
-  // ✅ DECLARE saveBuyScreenStructure BEFORE ANY HOOKS THAT REFERENCE IT
-  // Convert from useCallback to async function declaration for hoisting
+  // ✅ CRITICAL FIX: Save structure WITH current values, not empty values
   async function saveBuyScreenStructure() {
     try {
       const data = {
-        loans: loans.map(l => ({ id: l.id, name: l.name, amount: '' })), // Structure only
+        loans: loans.map(l => ({ id: l.id, name: l.name, amount: l.amount })), // ✅ Save WITH values
         selectedLoanId,
-        savingsItems: savingsItems.map(s => ({ id: s.id, amount: '' })), // Structure only
-        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: '' })), // Structure only
+        savingsItems: savingsItems.map(s => ({ id: s.id, amount: s.amount })), // ✅ Save WITH values
+        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: c.amount })), // ✅ Save WITH values
         viewMode,
       };
       await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
@@ -183,47 +182,23 @@ export default function BuyScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Buy screen data:', data);
         
+        // ✅ CRITICAL FIX: Load loans WITH their saved amounts
         if (data.loans && data.loans.length > 0) {
-          // Load loan amounts from localStorage
-          const loansWithAmounts = await Promise.all(
-            data.loans.map(async (loan: LoanItem) => {
-              const savedAmount = await loadNumericValue(BUY_KEYS.LOAN_AMOUNT + loan.id);
-              return {
-                ...loan,
-                amount: savedAmount !== null ? savedAmount : loan.amount || ''
-              };
-            })
-          );
-          setLoans(loansWithAmounts);
+          console.log('Loaded loans with amounts:', data.loans);
+          setLoans(data.loans);
         }
         if (data.selectedLoanId) setSelectedLoanId(data.selectedLoanId);
         
+        // ✅ CRITICAL FIX: Load savings WITH their saved amounts
         if (data.savingsItems && data.savingsItems.length > 0) {
-          // Load savings amounts from localStorage
-          const savingsWithAmounts = await Promise.all(
-            data.savingsItems.map(async (item: SavingsItem) => {
-              const savedAmount = await loadNumericValue(BUY_KEYS.SAVINGS_AMOUNT + item.id);
-              return {
-                ...item,
-                amount: savedAmount !== null ? savedAmount : item.amount || ''
-              };
-            })
-          );
-          setSavingsItems(savingsWithAmounts);
+          console.log('Loaded savings items with amounts:', data.savingsItems);
+          setSavingsItems(data.savingsItems);
         }
         
+        // ✅ CRITICAL FIX: Load cost items WITH their saved amounts
         if (data.costItems && data.costItems.length > 0) {
-          // Load cost amounts from localStorage
-          const costsWithAmounts = await Promise.all(
-            data.costItems.map(async (item: CostItem) => {
-              const savedAmount = await loadNumericValue(BUY_KEYS.COST_AMOUNT + item.id);
-              return {
-                ...item,
-                amount: savedAmount !== null ? savedAmount : item.amount || ''
-              };
-            })
-          );
-          setCostItems(costsWithAmounts);
+          console.log('Loaded cost items with amounts:', data.costItems);
+          setCostItems(data.costItems);
         }
         
         if (data.viewMode) setViewMode(data.viewMode);
@@ -396,9 +371,10 @@ export default function BuyScreen() {
   };
 
   const updateCostItemType = (id: string, type: string) => {
-    setCostItems(costItems.map(item => 
+    const updatedItems = costItems.map(item => 
       item.id === id ? { ...item, type, customLabel: type === 'Other' ? item.customLabel : '' } : item
-    ));
+    );
+    setCostItems(updatedItems);
     setShowDropdown(null);
     if (type === 'Other') {
       setShowCustomLabelInput(id);
@@ -408,19 +384,18 @@ export default function BuyScreen() {
   };
 
   const updateCostItemCustomLabel = (id: string, customLabel: string) => {
-    setCostItems(costItems.map(item => 
+    const updatedItems = costItems.map(item => 
       item.id === id ? { ...item, customLabel } : item
-    ));
+    );
+    setCostItems(updatedItems);
   };
 
   const updateCostItemAmount = (id: string, amount: string) => {
     console.log('User updated cost item amount:', id, amount);
-    setCostItems(costItems.map(item => 
+    const updatedItems = costItems.map(item => 
       item.id === id ? { ...item, amount } : item
-    ));
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    const storageKey = BUY_KEYS.COST_AMOUNT + id;
-    saveNumericValue(storageKey, amount);
+    );
+    setCostItems(updatedItems);
   };
 
   const removeCostItem = (id: string) => {
@@ -428,9 +403,6 @@ export default function BuyScreen() {
     setCostItems(updatedItems);
     if (showDropdown === id) setShowDropdown(null);
     if (showCustomLabelInput === id) setShowCustomLabelInput(null);
-    // Clear from localStorage using fixed key
-    const storageKey = BUY_KEYS.COST_AMOUNT + id;
-    saveNumericValue(storageKey, '');
   };
 
   const getCostItemDisplayLabel = (item: CostItem): string => {
@@ -464,17 +436,15 @@ export default function BuyScreen() {
     
     const existingLoan = loans.find(l => l.id === editingLoanId);
     if (existingLoan) {
-      setLoans(loans.map(l => 
+      const updatedLoans = loans.map(l => 
         l.id === editingLoanId ? { ...l, name: tempLoanName, amount: tempLoanAmount } : l
-      ));
+      );
+      setLoans(updatedLoans);
     } else {
-      setLoans([...loans, { id: editingLoanId, name: tempLoanName, amount: tempLoanAmount }]);
+      const updatedLoans = [...loans, { id: editingLoanId, name: tempLoanName, amount: tempLoanAmount }];
+      setLoans(updatedLoans);
       setSelectedLoanId(editingLoanId);
     }
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
-    const storageKey = BUY_KEYS.LOAN_AMOUNT + editingLoanId;
-    saveNumericValue(storageKey, tempLoanAmount);
     
     setShowLoanModal(false);
     setEditingLoanId(null);
@@ -489,9 +459,6 @@ export default function BuyScreen() {
       if (selectedLoanId === id) {
         setSelectedLoanId(loans[0].id);
       }
-      // Clear from localStorage using fixed key
-      const storageKey = BUY_KEYS.LOAN_AMOUNT + id;
-      saveNumericValue(storageKey, '');
     }
   };
 
@@ -504,21 +471,16 @@ export default function BuyScreen() {
 
   const updateSavingsItem = (id: string, amount: string) => {
     console.log('User updated savings item:', id, amount);
-    setSavingsItems(savingsItems.map(item => 
+    const updatedItems = savingsItems.map(item => 
       item.id === id ? { ...item, amount } : item
-    ));
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
-    saveNumericValue(storageKey, amount);
+    );
+    setSavingsItems(updatedItems);
   };
 
   const removeSavingsItem = (id: string) => {
     if (savingsItems.length > 1) {
       const updatedItems = savingsItems.filter(item => item.id !== id);
       setSavingsItems(updatedItems);
-      // Clear from localStorage using fixed key
-      const storageKey = BUY_KEYS.SAVINGS_AMOUNT + id;
-      saveNumericValue(storageKey, '');
     }
   };
 

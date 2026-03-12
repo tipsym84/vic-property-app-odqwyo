@@ -46,17 +46,17 @@ export default function SellScreen() {
     { id: '1', fromPrice: '', toPrice: '', rate: '' },
   ]);
 
-  // ✅ CRITICAL FIX: Convert to function declaration so it's hoisted
+  // ✅ CRITICAL FIX: Save structure WITH current values, not empty values
   async function saveSellScreenStructure() {
     try {
       const data = {
-        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only
+        debtItems: debtItems.map(item => ({ id: item.id, amount: item.amount })), // ✅ Save WITH values
         commissionTiers: commissionTiers.map(tier => ({ 
           id: tier.id, 
-          fromPrice: '', 
-          toPrice: '', 
-          rate: '' 
-        })), // Structure only
+          fromPrice: tier.fromPrice, 
+          toPrice: tier.toPrice, 
+          rate: tier.rate 
+        })), // ✅ Save WITH values
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
       console.log('Saved Sell screen structure to AsyncStorage:', data);
@@ -73,21 +73,11 @@ export default function SellScreen() {
     loadSellScreenData();
   }, []);
 
-  // ✅ CRITICAL FIX: Save structure AND individual values whenever arrays change
+  // ✅ CRITICAL FIX: Save structure whenever arrays change
   useEffect(() => {
     if (debtItems.length > 0 || commissionTiers.length > 0) {
-      console.log('Commission tiers or debt items changed - saving structure and values');
+      console.log('Commission tiers or debt items changed - saving structure with current values');
       saveSellScreenStructure();
-      // Also save individual commission tier values to ensure they persist
-      commissionTiers.forEach(tier => {
-        saveNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id, tier.fromPrice);
-        saveNumericValue(SELL_KEYS.COMMISSION_TO + tier.id, tier.toPrice);
-        saveNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id, tier.rate);
-      });
-      // Save debt item values
-      debtItems.forEach(item => {
-        saveNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id, item.amount);
-      });
     }
   }, [debtItems, commissionTiers]);
 
@@ -180,38 +170,16 @@ export default function SellScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Sell screen data:', data);
         
+        // ✅ CRITICAL FIX: Load debt items WITH their saved amounts
         if (data.debtItems && data.debtItems.length > 0) {
-          // Load debt amounts from localStorage
-          const debtsWithAmounts = await Promise.all(
-            data.debtItems.map(async (item: DebtItem) => {
-              const savedAmount = await loadNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id);
-              return {
-                ...item,
-                amount: savedAmount !== null ? savedAmount : item.amount || ''
-              };
-            })
-          );
-          console.log('Loaded debt items with amounts:', debtsWithAmounts);
-          setDebtItems(debtsWithAmounts);
+          console.log('Loaded debt items with amounts:', data.debtItems);
+          setDebtItems(data.debtItems);
         }
         
+        // ✅ CRITICAL FIX: Load commission tiers WITH their saved values
         if (data.commissionTiers && data.commissionTiers.length > 0) {
-          // Load commission tier values from localStorage
-          const tiersWithValues = await Promise.all(
-            data.commissionTiers.map(async (tier: CommissionTier) => {
-              const savedFrom = await loadNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id);
-              const savedTo = await loadNumericValue(SELL_KEYS.COMMISSION_TO + tier.id);
-              const savedRate = await loadNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id);
-              return {
-                ...tier,
-                fromPrice: savedFrom !== null ? savedFrom : tier.fromPrice || '',
-                toPrice: savedTo !== null ? savedTo : tier.toPrice || '',
-                rate: savedRate !== null ? savedRate : tier.rate || ''
-              };
-            })
-          );
-          console.log('Loaded commission tiers with values:', tiersWithValues);
-          setCommissionTiers(tiersWithValues);
+          console.log('Loaded commission tiers with values:', data.commissionTiers);
+          setCommissionTiers(data.commissionTiers);
         }
       } else {
         console.log('No saved Sell screen data found - using defaults');
@@ -420,35 +388,16 @@ export default function SellScreen() {
       const currentIndex = updatedTiers.findIndex(t => t.id === id);
       if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
         updatedTiers[currentIndex + 1].fromPrice = value;
-        // Also save the auto-populated value
-        saveNumericValue(SELL_KEYS.COMMISSION_FROM + updatedTiers[currentIndex + 1].id, value);
       }
     }
     
     setCommissionTiers(updatedTiers);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    if (field === 'fromPrice') {
-      const storageKey = SELL_KEYS.COMMISSION_FROM + id;
-      saveNumericValue(storageKey, value);
-    } else if (field === 'toPrice') {
-      const storageKey = SELL_KEYS.COMMISSION_TO + id;
-      saveNumericValue(storageKey, value);
-    } else if (field === 'rate') {
-      const storageKey = SELL_KEYS.COMMISSION_RATE + id;
-      saveNumericValue(storageKey, value);
-    }
   };
 
   const removeCommissionTier = (id: string) => {
     if (commissionTiers.length > 1) {
       const updatedTiers = commissionTiers.filter(tier => tier.id !== id);
       setCommissionTiers(updatedTiers);
-      
-      // Clear from localStorage using fixed keys
-      saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
-      saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
-      saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
       console.log('Removed commission tier:', id);
     }
   };
@@ -462,12 +411,10 @@ export default function SellScreen() {
 
   const updateDebtItem = (id: string, amount: string) => {
     console.log('User updated debt item', id, 'with amount', amount);
-    setDebtItems(debtItems.map(item => 
+    const updatedItems = debtItems.map(item => 
       item.id === id ? { ...item, amount } : item
-    ));
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
-    const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
-    saveNumericValue(storageKey, amount);
+    );
+    setDebtItems(updatedItems);
   };
 
   const removeDebtItem = (id: string) => {
@@ -475,10 +422,6 @@ export default function SellScreen() {
       console.log('Removing debt item:', id);
       const updatedItems = debtItems.filter(item => item.id !== id);
       setDebtItems(updatedItems);
-      
-      // Clear from localStorage using fixed key
-      const storageKey = SELL_KEYS.DEBT_AMOUNT + id;
-      saveNumericValue(storageKey, '');
     }
   };
 
