@@ -54,10 +54,21 @@ export default function SellScreen() {
     loadSellScreenData();
   }, []);
 
-  // Save structure whenever arrays change
+  // ✅ CRITICAL FIX: Save structure AND individual values whenever arrays change
   useEffect(() => {
     if (debtItems.length > 0 || commissionTiers.length > 0) {
+      console.log('Commission tiers or debt items changed - saving structure and values');
       saveSellScreenStructure();
+      // Also save individual commission tier values to ensure they persist
+      commissionTiers.forEach(tier => {
+        saveNumericValue(SELL_KEYS.COMMISSION_FROM + tier.id, tier.fromPrice);
+        saveNumericValue(SELL_KEYS.COMMISSION_TO + tier.id, tier.toPrice);
+        saveNumericValue(SELL_KEYS.COMMISSION_RATE + tier.id, tier.rate);
+      });
+      // Save debt item values
+      debtItems.forEach(item => {
+        saveNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id, item.amount);
+      });
     }
   }, [debtItems, commissionTiers, saveSellScreenStructure]);
 
@@ -161,6 +172,7 @@ export default function SellScreen() {
               };
             })
           );
+          console.log('Loaded debt items with amounts:', debtsWithAmounts);
           setDebtItems(debtsWithAmounts);
         }
         
@@ -179,6 +191,7 @@ export default function SellScreen() {
               };
             })
           );
+          console.log('Loaded commission tiers with values:', tiersWithValues);
           setCommissionTiers(tiersWithValues);
         }
       } else {
@@ -189,20 +202,20 @@ export default function SellScreen() {
     }
   };
 
-  // Save structure data only (not individual field values - those are saved in handlers)
+  // Save structure data (IDs and structure, values saved separately in useEffect)
   const saveSellScreenStructure = useCallback(async () => {
     try {
       const data = {
-        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only, amounts saved separately
+        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only
         commissionTiers: commissionTiers.map(tier => ({ 
           id: tier.id, 
           fromPrice: '', 
           toPrice: '', 
           rate: '' 
-        })), // Structure only, values saved separately
+        })), // Structure only
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen structure to AsyncStorage');
+      console.log('Saved Sell screen structure to AsyncStorage:', data);
     } catch (error) {
       console.error('Error saving Sell screen data:', error);
     }
@@ -393,7 +406,7 @@ export default function SellScreen() {
       { id: newId, fromPrice: newFrom, toPrice: '', rate: '' }
     ];
     setCommissionTiers(updatedTiers);
-    console.log('Added commission tier with id:', newId);
+    console.log('Added commission tier with id:', newId, 'fromPrice:', newFrom);
   };
 
   const updateCommissionTier = (id: string, field: keyof CommissionTier, value: string) => {
@@ -407,6 +420,8 @@ export default function SellScreen() {
       const currentIndex = updatedTiers.findIndex(t => t.id === id);
       if (currentIndex !== -1 && currentIndex < updatedTiers.length - 1) {
         updatedTiers[currentIndex + 1].fromPrice = value;
+        // Also save the auto-populated value
+        saveNumericValue(SELL_KEYS.COMMISSION_FROM + updatedTiers[currentIndex + 1].id, value);
       }
     }
     
@@ -434,6 +449,7 @@ export default function SellScreen() {
       saveNumericValue(SELL_KEYS.COMMISSION_FROM + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_TO + id, '');
       saveNumericValue(SELL_KEYS.COMMISSION_RATE + id, '');
+      console.log('Removed commission tier:', id);
     }
   };
 
