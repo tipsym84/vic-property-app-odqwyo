@@ -80,6 +80,24 @@ export default function BuyScreen() {
     isConcessionCardHolder: false,
   });
 
+  // ✅ DECLARE saveBuyScreenStructure BEFORE ANY HOOKS THAT REFERENCE IT
+  // Convert from useCallback to async function declaration for hoisting
+  async function saveBuyScreenStructure() {
+    try {
+      const data = {
+        loans: loans.map(l => ({ id: l.id, name: l.name, amount: '' })), // Structure only
+        selectedLoanId,
+        savingsItems: savingsItems.map(s => ({ id: s.id, amount: '' })), // Structure only
+        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: '' })), // Structure only
+        viewMode,
+      };
+      await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
+      console.log('Saved Buy screen structure:', data);
+    } catch (error) {
+      console.error('Error saving Buy screen structure:', error);
+    }
+  }
+
   // Load all persisted values on mount
   useEffect(() => {
     console.log('Buy screen mounted - loading persisted values');
@@ -93,7 +111,7 @@ export default function BuyScreen() {
     if (loans.length > 0 || savingsItems.length > 0 || costItems.length > 0) {
       saveBuyScreenStructure();
     }
-  }, [loans, savingsItems, costItems, selectedLoanId, viewMode, saveBuyScreenStructure]);
+  }, [loans, savingsItems, costItems, selectedLoanId, viewMode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -214,23 +232,6 @@ export default function BuyScreen() {
       console.error('Error loading Buy screen data:', error);
     }
   };
-
-  // Save structure data only (not individual field values - those are saved in handlers)
-  const saveBuyScreenStructure = useCallback(async () => {
-    try {
-      const data = {
-        loans: loans.map(l => ({ id: l.id, name: l.name, amount: '' })), // Structure only
-        selectedLoanId,
-        savingsItems: savingsItems.map(s => ({ id: s.id, amount: '' })), // Structure only
-        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: '' })), // Structure only
-        viewMode,
-      };
-      await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
-      console.log('Saved Buy screen structure:', data);
-    } catch (error) {
-      console.error('Error saving Buy screen structure:', error);
-    }
-  }, [loans, selectedLoanId, savingsItems, costItems, viewMode]);
 
   const handlePrimaryResidenceToggle = async (value: boolean) => {
     console.log('User toggled Primary Residence to:', value);
