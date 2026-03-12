@@ -44,16 +44,19 @@ export default function SellScreen() {
   // ✅ CRITICAL FIX: Initialize as empty array - only populate with defaults if no saved data
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
 
-  // ✅ CRITICAL FIX: Save structure WITH current values, not empty values
+  // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
   async function saveSellScreenStructure() {
     try {
       const data = {
-        debtItems: debtItems.map(item => ({ id: item.id, amount: item.amount })),
+        debtItems: debtItems.map(item => ({ 
+          id: item.id, 
+          amount: String(item.amount) // ✅ Ensure it's stored as string
+        })),
         commissionTiers: commissionTiers.map(tier => ({ 
           id: tier.id, 
-          fromPrice: tier.fromPrice, 
-          toPrice: tier.toPrice, 
-          rate: tier.rate 
+          fromPrice: String(tier.fromPrice), // ✅ Ensure it's stored as string
+          toPrice: String(tier.toPrice), // ✅ Ensure it's stored as string
+          rate: String(tier.rate) // ✅ Ensure it's stored as string
         })),
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
@@ -168,20 +171,30 @@ export default function SellScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Sell screen data:', data);
         
-        // ✅ CRITICAL FIX: Load debt items WITH their saved amounts
+        // ✅ CRITICAL FIX: Load debt items WITH their saved amounts AS STRINGS (no conversion)
         if (data.debtItems && data.debtItems.length > 0) {
-          console.log('Loaded debt items with amounts:', data.debtItems);
-          setDebtItems(data.debtItems);
+          const loadedDebtItems = data.debtItems.map((item: DebtItem) => ({
+            id: item.id,
+            amount: String(item.amount) // ✅ Ensure it's loaded as string
+          }));
+          console.log('Loaded debt items with amounts (as strings):', loadedDebtItems);
+          setDebtItems(loadedDebtItems);
         } else {
           // ✅ CRITICAL FIX: Only initialize with default if no saved data
           console.log('No saved debt items - initializing with default');
           setDebtItems([{ id: '1', amount: '' }]);
         }
         
-        // ✅ CRITICAL FIX: Load commission tiers WITH their saved values
+        // ✅ CRITICAL FIX: Load commission tiers WITH their saved values AS STRINGS (no conversion)
         if (data.commissionTiers && data.commissionTiers.length > 0) {
-          console.log('Loaded commission tiers with values:', data.commissionTiers);
-          setCommissionTiers(data.commissionTiers);
+          const loadedTiers = data.commissionTiers.map((tier: CommissionTier) => ({
+            id: tier.id,
+            fromPrice: String(tier.fromPrice), // ✅ Ensure it's loaded as string
+            toPrice: String(tier.toPrice), // ✅ Ensure it's loaded as string
+            rate: String(tier.rate) // ✅ Ensure it's loaded as string
+          }));
+          console.log('Loaded commission tiers with values (as strings):', loadedTiers);
+          setCommissionTiers(loadedTiers);
         } else {
           // ✅ CRITICAL FIX: Only initialize with default if no saved data
           console.log('No saved commission tiers - initializing with default');
@@ -332,13 +345,13 @@ export default function SellScreen() {
   const advertising = useMemo(() => parseFloat(advertisingCosts) || 0, [advertisingCosts]);
   const legal = useMemo(() => parseFloat(legalFees) || 0, [legalFees]);
   
-  // Calculate total debt from all debt items
+  // ✅ CRITICAL FIX: Calculate total debt from all debt items (convert strings to numbers ONLY for calculation)
   const totalDebt = useMemo(() => 
     debtItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0),
     [debtItems]
   );
   
-  // Determine how much debt to deduct
+  // ✅ CRITICAL FIX: Determine how much debt to deduct
   const debtToDeduct = useMemo(() => {
     if (!mortgageToBeRepaid) {
       return 0;
@@ -890,8 +903,18 @@ export default function SellScreen() {
             let displayAmount = 0;
             if (mortgageRepaidInFull) {
               displayAmount = debtAmount;
-            } else if (index === 0) {
-              displayAmount = Math.min(debtAmount, parseFloat(partialRepaymentAmount) || 0);
+            } else {
+              const partialAmount = parseFloat(partialRepaymentAmount) || 0;
+              let remainingPartial = partialAmount;
+              
+              for (let i = 0; i <= index; i++) {
+                const currentDebt = parseFloat(debtItems[i].amount) || 0;
+                if (i < index) {
+                  remainingPartial -= currentDebt;
+                } else {
+                  displayAmount = Math.min(currentDebt, Math.max(0, remainingPartial));
+                }
+              }
             }
             
             return (
