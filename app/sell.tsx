@@ -46,6 +46,25 @@ export default function SellScreen() {
     { id: '1', fromPrice: '', toPrice: '', rate: '' },
   ]);
 
+  // ✅ CRITICAL FIX: Convert to function declaration so it's hoisted
+  async function saveSellScreenStructure() {
+    try {
+      const data = {
+        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only
+        commissionTiers: commissionTiers.map(tier => ({ 
+          id: tier.id, 
+          fromPrice: '', 
+          toPrice: '', 
+          rate: '' 
+        })), // Structure only
+      };
+      await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
+      console.log('Saved Sell screen structure to AsyncStorage:', data);
+    } catch (error) {
+      console.error('Error saving Sell screen data:', error);
+    }
+  }
+
   // Load data on mount
   useEffect(() => {
     console.log('Sell screen mounted - loading persisted values');
@@ -70,7 +89,7 @@ export default function SellScreen() {
         saveNumericValue(SELL_KEYS.DEBT_AMOUNT + item.id, item.amount);
       });
     }
-  }, [debtItems, commissionTiers, saveSellScreenStructure]);
+  }, [debtItems, commissionTiers]);
 
   // Reload data when screen comes into focus
   useFocusEffect(
@@ -201,25 +220,6 @@ export default function SellScreen() {
       console.error('Error loading Sell screen data:', error);
     }
   };
-
-  // Save structure data (IDs and structure, values saved separately in useEffect)
-  const saveSellScreenStructure = useCallback(async () => {
-    try {
-      const data = {
-        debtItems: debtItems.map(item => ({ id: item.id, amount: '' })), // Structure only
-        commissionTiers: commissionTiers.map(tier => ({ 
-          id: tier.id, 
-          fromPrice: '', 
-          toPrice: '', 
-          rate: '' 
-        })), // Structure only
-      };
-      await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
-      console.log('Saved Sell screen structure to AsyncStorage:', data);
-    } catch (error) {
-      console.error('Error saving Sell screen data:', error);
-    }
-  }, [debtItems, commissionTiers]);
 
   const handleMortgageToBeRepaidToggle = async (value: boolean) => {
     console.log('User toggled Mortgage to be repaid to:', value);
