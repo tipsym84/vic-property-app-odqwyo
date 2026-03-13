@@ -53,18 +53,14 @@ export default function BuyScreen() {
   const [customIncrement, setCustomIncrement] = useState('1000');
   const [showCustomIncrementInput, setShowCustomIncrementInput] = useState(false);
   
-  const [loans, setLoans] = useState<LoanItem[]>([
-    { id: '1', name: 'Loan 1', amount: '' }
-  ]);
+  const [loans, setLoans] = useState<LoanItem[]>([]);
   const [selectedLoanId, setSelectedLoanId] = useState('1');
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [editingLoanId, setEditingLoanId] = useState<string | null>(null);
   const [tempLoanName, setTempLoanName] = useState('');
   const [tempLoanAmount, setTempLoanAmount] = useState('');
   
-  const [savingsItems, setSavingsItems] = useState<SavingsItem[]>([
-    { id: '1', amount: '' }
-  ]);
+  const [savingsItems, setSavingsItems] = useState<SavingsItem[]>([]);
   
   const [viewMode, setViewMode] = useState<'total' | 'cash' | 'remaining'>('cash');
   const [concessionAlertShown, setConcessionAlertShown] = useState(false);
@@ -80,14 +76,14 @@ export default function BuyScreen() {
     isConcessionCardHolder: false,
   });
 
-  // ✅ CRITICAL FIX: Save structure WITH current values, not empty values
+  // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
   async function saveBuyScreenStructure() {
     try {
       const data = {
-        loans: loans.map(l => ({ id: l.id, name: l.name, amount: l.amount })), // ✅ Save WITH values
+        loans: loans.map(l => ({ id: l.id, name: l.name, amount: l.amount })), // ✅ Store as-is (string)
         selectedLoanId,
-        savingsItems: savingsItems.map(s => ({ id: s.id, amount: s.amount })), // ✅ Save WITH values
-        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: c.amount })), // ✅ Save WITH values
+        savingsItems: savingsItems.map(s => ({ id: s.id, amount: s.amount })), // ✅ Store as-is (string)
+        costItems: costItems.map(c => ({ id: c.id, type: c.type, customLabel: c.customLabel, amount: c.amount })), // ✅ Store as-is (string)
         viewMode,
       };
       await AsyncStorage.setItem('buyScreenData', JSON.stringify(data));
@@ -105,7 +101,7 @@ export default function BuyScreen() {
     loadBuyScreenData();
   }, []);
 
-  // Save structure whenever arrays change
+  // ✅ CRITICAL FIX: Save structure whenever arrays change
   useEffect(() => {
     if (loans.length > 0 || savingsItems.length > 0 || costItems.length > 0) {
       saveBuyScreenStructure();
@@ -182,29 +178,59 @@ export default function BuyScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Buy screen data:', data);
         
-        // ✅ CRITICAL FIX: Load loans WITH their saved amounts
+        // ✅ CRITICAL FIX: Load loans AS STRINGS (no conversion)
         if (data.loans && data.loans.length > 0) {
-          console.log('Loaded loans with amounts:', data.loans);
-          setLoans(data.loans);
+          const loadedLoans = data.loans.map((loan: LoanItem) => ({
+            id: loan.id,
+            name: loan.name,
+            amount: loan.amount // ✅ Load as-is (string)
+          }));
+          console.log('Loaded loans with amounts (as strings):', loadedLoans);
+          setLoans(loadedLoans);
+        } else {
+          console.log('No saved loans - initializing with default');
+          setLoans([{ id: '1', name: 'Loan 1', amount: '' }]);
         }
+        
         if (data.selectedLoanId) setSelectedLoanId(data.selectedLoanId);
         
-        // ✅ CRITICAL FIX: Load savings WITH their saved amounts
+        // ✅ CRITICAL FIX: Load savings AS STRINGS (no conversion)
         if (data.savingsItems && data.savingsItems.length > 0) {
-          console.log('Loaded savings items with amounts:', data.savingsItems);
-          setSavingsItems(data.savingsItems);
+          const loadedSavings = data.savingsItems.map((item: SavingsItem) => ({
+            id: item.id,
+            amount: item.amount // ✅ Load as-is (string)
+          }));
+          console.log('Loaded savings items with amounts (as strings):', loadedSavings);
+          setSavingsItems(loadedSavings);
+        } else {
+          console.log('No saved savings items - initializing with default');
+          setSavingsItems([{ id: '1', amount: '' }]);
         }
         
-        // ✅ CRITICAL FIX: Load cost items WITH their saved amounts
+        // ✅ CRITICAL FIX: Load cost items AS STRINGS (no conversion)
         if (data.costItems && data.costItems.length > 0) {
-          console.log('Loaded cost items with amounts:', data.costItems);
-          setCostItems(data.costItems);
+          const loadedCostItems = data.costItems.map((item: CostItem) => ({
+            id: item.id,
+            type: item.type,
+            customLabel: item.customLabel,
+            amount: item.amount // ✅ Load as-is (string)
+          }));
+          console.log('Loaded cost items with amounts (as strings):', loadedCostItems);
+          setCostItems(loadedCostItems);
         }
         
         if (data.viewMode) setViewMode(data.viewMode);
+      } else {
+        // ✅ CRITICAL FIX: No saved data - initialize with defaults
+        console.log('No saved Buy screen data found - using defaults');
+        setLoans([{ id: '1', name: 'Loan 1', amount: '' }]);
+        setSavingsItems([{ id: '1', amount: '' }]);
       }
     } catch (error) {
       console.error('Error loading Buy screen data:', error);
+      // ✅ CRITICAL FIX: On error, initialize with defaults
+      setLoans([{ id: '1', name: 'Loan 1', amount: '' }]);
+      setSavingsItems([{ id: '1', amount: '' }]);
     }
   };
 
@@ -218,10 +244,8 @@ export default function BuyScreen() {
     };
     setUserProfile(newProfile);
     
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, value);
     if (!value) {
-      // If turning off primary residence, also turn off dependent toggles
       await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
       await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, false);
     }
@@ -235,8 +259,6 @@ export default function BuyScreen() {
         isFirstHomeBuyer: value,
       };
       setUserProfile(newProfile);
-      
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
       await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, value);
     }
   };
@@ -249,8 +271,6 @@ export default function BuyScreen() {
         isConcessionCardHolder: value,
       };
       setUserProfile(newProfile);
-      
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
       await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, value);
       
       if (value) {
@@ -278,7 +298,6 @@ export default function BuyScreen() {
       setCurrentBid(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setCurrentBidText(formatted);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
       saveNumericValue(BUY_KEYS.CURRENT_OFFER, cleanText);
     } else if (cleanText === '') {
       setCurrentBid(0);
@@ -301,7 +320,6 @@ export default function BuyScreen() {
     if (!isNaN(value) && value > 0) {
       setBidIncrement(value);
       setShowCustomIncrementInput(false);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
       saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
       saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -329,7 +347,6 @@ export default function BuyScreen() {
   const cashNeededRaw = totalRequired - loanAmount - balanceOfSaleFunds;
   const cashNeeded = Math.max(0, cashNeededRaw);
   
-  // ✅ REVISED CALCULATION: Savings Remaining = (Loan Pre-Approval + Balance of Sale Funds + Your Savings/Other Funds) - Total Cost Breakdown
   const savingsRemaining = useMemo(() => {
     const totalLoanPreApproval = loanAmount;
     const totalBalanceOfSaleFunds = balanceOfSaleFunds;
@@ -345,7 +362,6 @@ export default function BuyScreen() {
     setCurrentBid(newBid);
     const formatted = newBid > 0 ? newBid.toLocaleString('en-US') : '';
     setCurrentBidText(formatted);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(BUY_KEYS.CURRENT_OFFER, newBid.toString());
   };
 
@@ -489,18 +505,14 @@ export default function BuyScreen() {
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setBidIncrement(value);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(BUY_KEYS.BID_INCREMENT, value.toString());
   };
 
   const handleViewModeChange = (mode: 'total' | 'cash' | 'remaining') => {
     console.log('User changed view mode to:', mode);
     setViewMode(mode);
-    // Save structure change
-    saveBuyScreenStructure();
   };
 
-  // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
 
   return (
@@ -689,7 +701,6 @@ export default function BuyScreen() {
                 value={customIncrement}
                 onChangeText={(text) => {
                   setCustomIncrement(text);
-                  // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
                   saveNumericValue(BUY_KEYS.CUSTOM_INCREMENT, text);
                 }}
                 onBlur={() => Keyboard.dismiss()}
@@ -760,8 +771,6 @@ export default function BuyScreen() {
                     ]}
                     onPress={() => {
                       setSelectedLoanId(loan.id);
-                      // Save structure change
-                      saveBuyScreenStructure();
                     }}
                   >
                     <Text style={[

@@ -37,11 +37,9 @@ export default function SellScreen() {
   const [advertisingCosts, setAdvertisingCosts] = useState('');
   const [legalFees, setLegalFees] = useState('');
   
-  // ✅ CRITICAL FIX: Initialize as empty arrays - only populate with defaults if no saved data
   const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
   const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
   
-  // ✅ CRITICAL FIX: Initialize as empty array - only populate with defaults if no saved data
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
 
   // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
@@ -50,13 +48,13 @@ export default function SellScreen() {
       const data = {
         debtItems: debtItems.map(item => ({ 
           id: item.id, 
-          amount: String(item.amount) // ✅ Ensure it's stored as string
+          amount: item.amount // ✅ Store as-is (string)
         })),
         commissionTiers: commissionTiers.map(tier => ({ 
           id: tier.id, 
-          fromPrice: String(tier.fromPrice), // ✅ Ensure it's stored as string
-          toPrice: String(tier.toPrice), // ✅ Ensure it's stored as string
-          rate: String(tier.rate) // ✅ Ensure it's stored as string
+          fromPrice: tier.fromPrice, // ✅ Store as-is (string)
+          toPrice: tier.toPrice, // ✅ Store as-is (string)
+          rate: tier.rate // ✅ Store as-is (string)
         })),
       };
       await AsyncStorage.setItem('sellScreenData', JSON.stringify(data));
@@ -171,44 +169,40 @@ export default function SellScreen() {
         const data = JSON.parse(savedData);
         console.log('Loaded Sell screen data:', data);
         
-        // ✅ CRITICAL FIX: Load debt items WITH their saved amounts AS STRINGS (no conversion)
+        // ✅ CRITICAL FIX: Load debt items AS STRINGS (no conversion)
         if (data.debtItems && data.debtItems.length > 0) {
           const loadedDebtItems = data.debtItems.map((item: DebtItem) => ({
             id: item.id,
-            amount: String(item.amount) // ✅ Ensure it's loaded as string
+            amount: item.amount // ✅ Load as-is (string)
           }));
           console.log('Loaded debt items with amounts (as strings):', loadedDebtItems);
           setDebtItems(loadedDebtItems);
         } else {
-          // ✅ CRITICAL FIX: Only initialize with default if no saved data
           console.log('No saved debt items - initializing with default');
           setDebtItems([{ id: '1', amount: '' }]);
         }
         
-        // ✅ CRITICAL FIX: Load commission tiers WITH their saved values AS STRINGS (no conversion)
+        // ✅ CRITICAL FIX: Load commission tiers AS STRINGS (no conversion)
         if (data.commissionTiers && data.commissionTiers.length > 0) {
           const loadedTiers = data.commissionTiers.map((tier: CommissionTier) => ({
             id: tier.id,
-            fromPrice: String(tier.fromPrice), // ✅ Ensure it's loaded as string
-            toPrice: String(tier.toPrice), // ✅ Ensure it's loaded as string
-            rate: String(tier.rate) // ✅ Ensure it's loaded as string
+            fromPrice: tier.fromPrice, // ✅ Load as-is (string)
+            toPrice: tier.toPrice, // ✅ Load as-is (string)
+            rate: tier.rate // ✅ Load as-is (string)
           }));
           console.log('Loaded commission tiers with values (as strings):', loadedTiers);
           setCommissionTiers(loadedTiers);
         } else {
-          // ✅ CRITICAL FIX: Only initialize with default if no saved data
           console.log('No saved commission tiers - initializing with default');
           setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
         }
       } else {
-        // ✅ CRITICAL FIX: No saved data at all - initialize with defaults
         console.log('No saved Sell screen data found - using defaults');
         setDebtItems([{ id: '1', amount: '' }]);
         setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
       }
     } catch (error) {
       console.error('Error loading Sell screen data:', error);
-      // ✅ CRITICAL FIX: On error, initialize with defaults
       setDebtItems([{ id: '1', amount: '' }]);
       setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
     }
@@ -217,24 +211,18 @@ export default function SellScreen() {
   const handleMortgageToBeRepaidToggle = async (value: boolean) => {
     console.log('User toggled Mortgage to be repaid to:', value);
     setMortgageToBeRepaid(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
   };
 
   const handleMortgageRepaidInFullToggle = async (value: boolean) => {
     console.log('User toggled Mortgage repaid in full to:', value);
     setMortgageRepaidInFull(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
   };
 
   const handleUseSaleFundsToggle = async (value: boolean) => {
     console.log('User toggled Use sale funds to:', value);
     setUseSaleFunds(value);
-    
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user action
     await saveToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, value);
   };
 
@@ -283,7 +271,6 @@ export default function SellScreen() {
       setSalePrice(numValue);
       const formatted = numValue.toLocaleString('en-US');
       setSalePriceText(formatted);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
       saveNumericValue(SELL_KEYS.SALE_PRICE, cleanText);
     } else if (cleanText === '') {
       setSalePrice(0);
@@ -306,7 +293,6 @@ export default function SellScreen() {
     setSalePrice(newPrice);
     const formatted = newPrice > 0 ? newPrice.toLocaleString('en-US') : '';
     setSalePriceText(formatted);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(SELL_KEYS.SALE_PRICE, newPrice.toString());
   };
 
@@ -316,7 +302,6 @@ export default function SellScreen() {
     if (!isNaN(value) && value > 0) {
       setPriceIncrement(value);
       setShowCustomIncrementInput(false);
-      // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
       saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
       saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, customIncrement);
     } else {
@@ -336,7 +321,6 @@ export default function SellScreen() {
 
   const incrementOptions = [500, 1000, 2000, 5000, 10000, 20000, 50000];
   
-  // ✅ FIXED FONT SIZE: 70% of original 48px = 33.6px (no dynamic scaling)
   const fixedFontSize = 48 * 0.7;
   
   // Memoized calculations - only recalculate when dependencies change
@@ -351,7 +335,6 @@ export default function SellScreen() {
     [debtItems]
   );
   
-  // ✅ CRITICAL FIX: Determine how much debt to deduct
   const debtToDeduct = useMemo(() => {
     if (!mortgageToBeRepaid) {
       return 0;
@@ -417,12 +400,6 @@ export default function SellScreen() {
     }
     
     setCommissionTiers(updatedTiers);
-    
-    // ✅ CRITICAL FIX: Save immediately after updating state
-    // This ensures the data persists even if the user navigates away
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
   };
 
   const removeCommissionTier = (id: string) => {
@@ -446,12 +423,6 @@ export default function SellScreen() {
       item.id === id ? { ...item, amount } : item
     );
     setDebtItems(updatedItems);
-    
-    // ✅ CRITICAL FIX: Save immediately after updating state
-    // This ensures the data persists even if the user navigates away
-    setTimeout(() => {
-      saveSellScreenStructure();
-    }, 0);
   };
 
   const removeDebtItem = (id: string) => {
@@ -469,28 +440,24 @@ export default function SellScreen() {
   const handleIncrementChange = (value: number) => {
     console.log('User changed increment to:', value);
     setPriceIncrement(value);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to button press
     saveNumericValue(SELL_KEYS.PRICE_INCREMENT, value.toString());
   };
 
   const handleAdvertisingChange = (text: string) => {
     console.log('User changed advertising costs:', text);
     setAdvertisingCosts(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.ADVERTISING_COSTS, text);
   };
 
   const handleLegalFeesChange = (text: string) => {
     console.log('User changed legal fees:', text);
     setLegalFees(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
   };
 
   const handlePartialRepaymentChange = (text: string) => {
     console.log('User changed partial repayment amount:', text);
     setPartialRepaymentAmount(text);
-    // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
     saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
   };
 
@@ -674,7 +641,6 @@ export default function SellScreen() {
                 value={customIncrement}
                 onChangeText={(text) => {
                   setCustomIncrement(text);
-                  // ✅ EXPLICIT PERSISTENCE: Save immediately in response to user input
                   saveNumericValue(SELL_KEYS.CUSTOM_INCREMENT, text);
                 }}
                 onBlur={() => Keyboard.dismiss()}
