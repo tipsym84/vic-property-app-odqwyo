@@ -13,7 +13,7 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
 			"supportsTablet": true,
       "bundleIdentifier": "com.vicpropertyguru.app",
       "infoPlist": {
