@@ -73,11 +73,11 @@ export default function BuyScreen() {
   const [userProfile, setUserProfile] = useState<UserProfile>({
     isPrimaryResidence: false,
     isFirstHomeBuyer: false,
-    isConcessionCardHolder: false,
+    isConcessionCardHolder: false, // always false — concession card toggle removed
   });
 
   // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
-  async function saveBuyScreenStructure() {
+  const saveBuyScreenStructure = useCallback(async () => {
     try {
       const data = {
         loans: loans.map(l => ({ id: l.id, name: l.name, amount: l.amount })), // ✅ Store as-is (string)
@@ -91,7 +91,7 @@ export default function BuyScreen() {
     } catch (error) {
       console.error('Error saving Buy screen structure:', error);
     }
-  }
+  }, [loans, selectedLoanId, savingsItems, costItems, viewMode]);
 
   // Load all persisted values on mount
   useEffect(() => {
@@ -106,7 +106,7 @@ export default function BuyScreen() {
     if (loans.length > 0 || savingsItems.length > 0 || costItems.length > 0) {
       saveBuyScreenStructure();
     }
-  }, [loans, savingsItems, costItems, selectedLoanId, viewMode]);
+  }, [loans, savingsItems, costItems, selectedLoanId, viewMode, saveBuyScreenStructure]);
 
   useFocusEffect(
     useCallback(() => {
@@ -157,13 +157,10 @@ export default function BuyScreen() {
     // Load First Home Owner toggle
     const firstHomeOwner = await loadToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
     
-    // Load Concession Card toggle
-    const concessionCard = await loadToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, false);
-    
     const newProfile = {
       isPrimaryResidence: primaryResidence,
       isFirstHomeBuyer: firstHomeOwner,
-      isConcessionCardHolder: concessionCard,
+      isConcessionCardHolder: false,
     };
     
     console.log('Loaded toggle values:', newProfile);
@@ -240,14 +237,13 @@ export default function BuyScreen() {
       ...userProfile,
       isPrimaryResidence: value,
       isFirstHomeBuyer: value ? userProfile.isFirstHomeBuyer : false,
-      isConcessionCardHolder: value ? userProfile.isConcessionCardHolder : false,
+      isConcessionCardHolder: false,
     };
     setUserProfile(newProfile);
     
     await saveToggleValue(BUY_KEYS.PRIMARY_RESIDENCE_TOGGLE, value);
     if (!value) {
       await saveToggleValue(BUY_KEYS.FIRST_HOME_OWNER_TOGGLE, false);
-      await saveToggleValue(BUY_KEYS.CONCESSION_CARD_TOGGLE, false);
     }
   };
 
@@ -565,21 +561,7 @@ export default function BuyScreen() {
               />
             </View>
             
-            <View style={styles.toggleRow}>
-              <Text style={[
-                styles.toggleLabel,
-                !userProfile.isPrimaryResidence && styles.toggleLabelDisabled
-              ]}>
-                Concession Card
-              </Text>
-              <Switch
-                value={userProfile.isConcessionCardHolder}
-                onValueChange={handleConcessionCardToggle}
-                disabled={!userProfile.isPrimaryResidence}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={userProfile.isConcessionCardHolder ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
+
           </View>
         </View>
 

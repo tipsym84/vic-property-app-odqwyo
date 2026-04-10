@@ -43,7 +43,7 @@ export default function SellScreen() {
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
 
   // ✅ CRITICAL FIX: Save structure WITH current values AS STRINGS (no conversion)
-  async function saveSellScreenStructure() {
+  const saveSellScreenStructure = useCallback(async () => {
     try {
       const data = {
         debtItems: debtItems.map(item => ({ 
@@ -62,7 +62,7 @@ export default function SellScreen() {
     } catch (error) {
       console.error('Error saving Sell screen data:', error);
     }
-  }
+  }, [debtItems, commissionTiers]);
 
   // Load data on mount
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function SellScreen() {
       console.log('Commission tiers or debt items changed - saving structure with current values');
       saveSellScreenStructure();
     }
-  }, [debtItems, commissionTiers]);
+  }, [debtItems, commissionTiers, saveSellScreenStructure]);
 
   // Reload data when screen comes into focus
   useFocusEffect(
