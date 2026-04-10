@@ -24,7 +24,6 @@ export default function SellScreen() {
   const router = useRouter();
   const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
   
-  const [mortgageToBeRepaid, setMortgageToBeRepaid] = useState(false);
   const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
   const [useSaleFunds, setUseSaleFunds] = useState(false);
   
@@ -142,10 +141,6 @@ export default function SellScreen() {
   const loadAllToggleValues = async () => {
     console.log('Loading all toggle values from localStorage');
     
-    // Load Mortgage to be repaid toggle
-    const mortgageRepaid = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, false);
-    setMortgageToBeRepaid(mortgageRepaid);
-    
     // Load Mortgage repaid in full toggle
     const mortgageRepaidFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, true);
     setMortgageRepaidInFull(mortgageRepaidFull);
@@ -155,7 +150,6 @@ export default function SellScreen() {
     setUseSaleFunds(useSaleFundsToggle);
     
     console.log('Loaded toggle values:', {
-      mortgageRepaid,
       mortgageRepaidFull,
       useSaleFundsToggle
     });
@@ -206,12 +200,6 @@ export default function SellScreen() {
       setDebtItems([{ id: '1', amount: '' }]);
       setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
     }
-  };
-
-  const handleMortgageToBeRepaidToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage to be repaid to:', value);
-    setMortgageToBeRepaid(value);
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_TOGGLE, value);
   };
 
   const handleMortgageRepaidInFullToggle = async (value: boolean) => {
@@ -336,18 +324,15 @@ export default function SellScreen() {
   );
   
   const debtToDeduct = useMemo(() => {
-    if (!mortgageToBeRepaid) {
-      return 0;
-    }
     if (mortgageRepaidInFull) {
       return totalDebt;
     }
     return parseFloat(partialRepaymentAmount) || 0;
-  }, [mortgageToBeRepaid, mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
+  }, [mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
   
   const dischargeFee = useMemo(() => 
-    mortgageToBeRepaid && debtToDeduct > 0 ? 350 : 0,
-    [mortgageToBeRepaid, debtToDeduct]
+    debtToDeduct > 0 ? 350 : 0,
+    [debtToDeduct]
   );
 
   const totalCosts = useMemo(() => 
@@ -488,28 +473,14 @@ export default function SellScreen() {
         <View style={commonStyles.card}>
           <View style={styles.toggleSection}>
             <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Mortgage to be repaid?</Text>
+              <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
               <Switch
-                value={mortgageToBeRepaid}
-                onValueChange={handleMortgageToBeRepaidToggle}
+                value={mortgageRepaidInFull}
+                onValueChange={handleMortgageRepaidInFullToggle}
                 trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={mortgageToBeRepaid ? '#4caf50' : '#f4f3f4'}
+                thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
               />
             </View>
-            
-            {mortgageToBeRepaid && (
-              <>
-                <View style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
-                  <Switch
-                    value={mortgageRepaidInFull}
-                    onValueChange={handleMortgageRepaidInFullToggle}
-                    trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                    thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
-                  />
-                </View>
-              </>
-            )}
 
             <View style={styles.toggleRow}>
               <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
@@ -807,7 +778,7 @@ export default function SellScreen() {
             </React.Fragment>
           ))}
 
-          {mortgageToBeRepaid && !mortgageRepaidInFull && (
+          {!mortgageRepaidInFull && (
             <>
               <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
               <View style={styles.inputWithPrefix}>
@@ -857,7 +828,7 @@ export default function SellScreen() {
             </View>
           )}
 
-          {mortgageToBeRepaid && debtItems.map((item, index) => {
+          {debtItems.map((item, index) => {
             const debtAmount = parseFloat(item.amount) || 0;
             
             if (debtAmount === 0) {
