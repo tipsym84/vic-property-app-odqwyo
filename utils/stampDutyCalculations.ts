@@ -109,6 +109,7 @@ export const calculateStampDuty = (
 };
 
 export const calculateLandTransferFee = (price: number): number => {
+  if (price < 1) return 0;
   if (price <= 25000) return 110;
   if (price <= 130000) return 110 + ((price - 25000) / 1000) * 2.46;
   if (price <= 960000) return 368.30 + ((price - 130000) / 1000) * 5.06;
