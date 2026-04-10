@@ -41,7 +41,7 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.appName}>VicPropertyGuru</Text>
-          <Text style={styles.subheading}>Get the figures that matter for your……</Text>
+          <Text style={styles.subheading}>Get the figures that matter for your Victorian real estate transaction</Text>
         </View>
 
         <TouchableOpacity 
