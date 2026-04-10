@@ -24,7 +24,6 @@ export default function SellScreen() {
   const router = useRouter();
   const { setNetProceeds, setUseSaleFundsForPurchase } = useProperty();
   
-  const [mortgageRepaidInFull, setMortgageRepaidInFull] = useState(true);
   const [useSaleFunds, setUseSaleFunds] = useState(false);
   
   const [salePrice, setSalePrice] = useState(0);
@@ -37,7 +36,6 @@ export default function SellScreen() {
   const [legalFees, setLegalFees] = useState('');
   
   const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
-  const [partialRepaymentAmount, setPartialRepaymentAmount] = useState('');
   
   const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
 
@@ -130,27 +128,17 @@ export default function SellScreen() {
       setLegalFees(savedLegal);
     }
     
-    // Load partial repayment amount
-    const savedPartial = await loadNumericValue(SELL_KEYS.PARTIAL_REPAYMENT);
-    if (savedPartial !== null) {
-      setPartialRepaymentAmount(savedPartial);
-    }
   };
 
   // Load all toggle values from localStorage
   const loadAllToggleValues = async () => {
     console.log('Loading all toggle values from localStorage');
     
-    // Load Mortgage repaid in full toggle
-    const mortgageRepaidFull = await loadToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, true);
-    setMortgageRepaidInFull(mortgageRepaidFull);
-    
     // Load Use sale funds toggle
     const useSaleFundsToggle = await loadToggleValue(SELL_KEYS.USE_SALE_FUNDS_TOGGLE, false);
     setUseSaleFunds(useSaleFundsToggle);
     
     console.log('Loaded toggle values:', {
-      mortgageRepaidFull,
       useSaleFundsToggle
     });
   };
@@ -200,12 +188,6 @@ export default function SellScreen() {
       setDebtItems([{ id: '1', amount: '' }]);
       setCommissionTiers([{ id: '1', fromPrice: '', toPrice: '', rate: '' }]);
     }
-  };
-
-  const handleMortgageRepaidInFullToggle = async (value: boolean) => {
-    console.log('User toggled Mortgage repaid in full to:', value);
-    setMortgageRepaidInFull(value);
-    await saveToggleValue(SELL_KEYS.MORTGAGE_REPAID_FULL_TOGGLE, value);
   };
 
   const handleUseSaleFundsToggle = async (value: boolean) => {
@@ -323,12 +305,7 @@ export default function SellScreen() {
     [debtItems]
   );
   
-  const debtToDeduct = useMemo(() => {
-    if (mortgageRepaidInFull) {
-      return totalDebt;
-    }
-    return parseFloat(partialRepaymentAmount) || 0;
-  }, [mortgageRepaidInFull, totalDebt, partialRepaymentAmount]);
+  const debtToDeduct = totalDebt;
   
   const dischargeFee = useMemo(() => 
     debtToDeduct > 0 ? 350 : 0,
@@ -440,12 +417,6 @@ export default function SellScreen() {
     saveNumericValue(SELL_KEYS.LEGAL_FEES, text);
   };
 
-  const handlePartialRepaymentChange = (text: string) => {
-    console.log('User changed partial repayment amount:', text);
-    setPartialRepaymentAmount(text);
-    saveNumericValue(SELL_KEYS.PARTIAL_REPAYMENT, text);
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
@@ -472,16 +443,6 @@ export default function SellScreen() {
       >
         <View style={commonStyles.card}>
           <View style={styles.toggleSection}>
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Mortgage to be repaid in full?</Text>
-              <Switch
-                value={mortgageRepaidInFull}
-                onValueChange={handleMortgageRepaidInFullToggle}
-                trackColor={{ false: '#d0d0d0', true: '#81c784' }}
-                thumbColor={mortgageRepaidInFull ? '#4caf50' : '#f4f3f4'}
-              />
-            </View>
-
             <View style={styles.toggleRow}>
               <Text style={styles.toggleLabel}>Use available sale funds for your purchase?</Text>
               <Switch
@@ -778,22 +739,7 @@ export default function SellScreen() {
             </React.Fragment>
           ))}
 
-          {!mortgageRepaidInFull && (
-            <>
-              <Text style={[commonStyles.label, { marginTop: 12 }]}>Amount of loan to be repaid</Text>
-              <View style={styles.inputWithPrefix}>
-                <Text style={styles.inputPrefix}>$</Text>
-                <TextInput
-                  style={[commonStyles.input, styles.inputWithPrefixField]}
-                  placeholder="Enter partial repayment amount"
-                  keyboardType="numeric"
-                  value={partialRepaymentAmount}
-                  onChangeText={handlePartialRepaymentChange}
-                  onBlur={() => Keyboard.dismiss()}
-                />
-              </View>
-            </>
-          )}
+
         </View>
 
         <View style={[commonStyles.card, styles.resultsCard]}>
@@ -830,38 +776,16 @@ export default function SellScreen() {
 
           {debtItems.map((item, index) => {
             const debtAmount = parseFloat(item.amount) || 0;
-            
             if (debtAmount === 0) {
               return null;
             }
-            
             const labelText = `Mortgage/Debt ${index + 1}`;
-            
-            let displayAmount = 0;
-            if (mortgageRepaidInFull) {
-              displayAmount = debtAmount;
-            } else {
-              const partialAmount = parseFloat(partialRepaymentAmount) || 0;
-              let remainingPartial = partialAmount;
-              
-              for (let i = 0; i <= index; i++) {
-                const currentDebt = parseFloat(debtItems[i].amount) || 0;
-                if (i < index) {
-                  remainingPartial -= currentDebt;
-                } else {
-                  displayAmount = Math.min(currentDebt, Math.max(0, remainingPartial));
-                }
-              }
-            }
-            
             return (
               <React.Fragment key={index}>
-              {displayAmount > 0 && (
                 <View style={styles.resultRow}>
                   <Text style={styles.resultLabel}>{labelText}</Text>
-                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(displayAmount)}</Text>
+                  <Text style={[styles.resultValue, styles.costValue]}>-${formatMoney(debtAmount)}</Text>
                 </View>
-              )}
               </React.Fragment>
             );
           })}
