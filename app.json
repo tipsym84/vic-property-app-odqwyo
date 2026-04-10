@@ -2,7 +2,7 @@
   "expo": {
     "name": "VicPropertyGuru",
     "slug": "vicpropertyguru",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/a58a986b-f5d0-4d21-985f-75523c2b8428.png",
     "userInterfaceStyle": "automatic",
